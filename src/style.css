@@ -1,0 +1,395 @@
+* {
+    box-sizing: border-box;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+html, body {
+    margin: 0;
+    height: 100%;
+    font: 15px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    color: #2b2620;
+    background: #f2f0eb;
+}
+
+#app {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    height: 100vh;
+    height: 100dvh;
+}
+
+#viewport {
+    position: relative;
+    overflow: hidden;
+    min-height: 0;
+}
+
+#viewport canvas {
+    display: block;
+    touch-action: none;
+}
+
+.label-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+}
+
+.dim-label {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(43, 38, 32, 0.85);
+    color: #fff;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+#panel {
+    overflow-y: auto;
+    padding: 12px 16px 32px;
+    background: #fff;
+    border-left: 1px solid #ddd6ca;
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eee8de;
+}
+
+.panel-header h1 {
+    margin: 0;
+    font-size: 18px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+button.small {
+    padding: 6px 10px;
+    font-size: 14px;
+}
+
+button.icon {
+    display: inline-flex;
+    padding: 8px;
+    background: transparent;
+    color: #6b6152;
+}
+
+button.icon:hover {
+    background: #f2ede4;
+}
+
+button.icon.help-icon {
+    width: 38px;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 22px;
+}
+
+button.icon svg {
+    width: 22px;
+    height: 22px;
+    fill: currentColor;
+}
+
+section {
+    padding: 12px 0;
+    border-bottom: 1px solid #eee8de;
+}
+
+h2 {
+    margin: 0 0 8px;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6b6152;
+}
+
+.field {
+    display: block;
+    margin-bottom: 8px;
+}
+
+.field span {
+    display: block;
+    font-size: 12px;
+    color: #6b6152;
+}
+
+/* Drag up/down to change: the label works with touch, the input with a mouse */
+.scrub-handle {
+    cursor: ns-resize;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+input.scrub:not(:focus) {
+    cursor: ns-resize;
+}
+
+body.scrubbing, body.scrubbing * {
+    cursor: ns-resize !important;
+    user-select: none !important;
+}
+
+/* 16px stops iOS Safari zooming in on focus */
+input[type="text"], select {
+    width: 100%;
+    padding: 8px;
+    font-size: 16px;
+    border: 1px solid #cfc6b8;
+    border-radius: 6px;
+    background: #fff;
+    color: inherit;
+}
+
+input.invalid {
+    border-color: #c0392b;
+    background: #fdf0ee;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.check {
+    display: block;
+    margin: 4px 0 10px;
+}
+
+button {
+    padding: 10px 14px;
+    font-size: 15px;
+    border: 0;
+    border-radius: 6px;
+    background: #8a5a2b;
+    color: #fff;
+    cursor: pointer;
+}
+
+button.secondary {
+    background: #ece5d9;
+    color: inherit;
+}
+
+button.danger {
+    background: #fff;
+    color: #c0392b;
+    border: 1px solid #e3b7b0;
+}
+
+.hint {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: #8a806f;
+}
+
+.error {
+    margin: 0 0 8px;
+    color: #c0392b;
+}
+
+.tree, .tree ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.tree {
+    margin-bottom: 8px;
+}
+
+.tree ul {
+    padding-left: 14px;
+    border-left: 2px solid #eee8de;
+    margin-left: 6px;
+}
+
+.tree .node {
+    width: 100%;
+    margin-bottom: 4px;
+    padding: 8px;
+    text-align: left;
+    font-size: 14px;
+    background: #f6f2ea;
+    color: inherit;
+}
+
+.tree .node.group {
+    font-weight: 600;
+}
+
+.tree .node.within {
+    background: #ebf2f9;
+}
+
+.tree .node.active {
+    background: #cfe2f4;
+}
+
+.overall {
+    margin: 0 0 8px;
+    font-variant-numeric: tabular-nums;
+}
+
+.move {
+    margin: 8px 0;
+}
+
+.move-row {
+    display: grid;
+    grid-template-columns: 1fr 48px 48px;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.move-row button {
+    padding: 8px 0;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.help ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.help li, .help p {
+    margin: 0 0 6px;
+}
+
+.shortcuts {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.shortcuts th, .shortcuts td {
+    padding: 5px 6px;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid #eee8de;
+}
+
+.shortcuts th {
+    width: 45%;
+    font-weight: 600;
+}
+
+.estimate-group {
+    margin-bottom: 12px;
+}
+
+.estimate-line {
+    margin: 0 0 6px;
+    font-weight: 600;
+}
+
+figure.sheet {
+    margin: 0 0 12px;
+}
+
+figure.sheet figcaption {
+    font-size: 12px;
+    color: #6b6152;
+    margin-bottom: 4px;
+}
+
+.sheet-diagram {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.sheet-stock {
+    fill: #e9e3d8;
+    stroke: #8a806f;
+    stroke-width: 1px;
+}
+
+.sheet-piece rect {
+    fill: #d8b88a;
+    stroke: #5a4630;
+    stroke-width: 1px;
+}
+
+.sheet-piece text {
+    fill: #2b2620;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.sheet-legend {
+    margin: 6px 0 0;
+    padding-left: 22px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+.cutlist {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.cutlist th, .cutlist td {
+    padding: 4px 6px;
+    text-align: left;
+    border-bottom: 1px solid #eee8de;
+    white-space: nowrap;
+}
+
+.cutlist td:last-child {
+    white-space: normal;
+}
+
+/* Phones: 3D view on top, controls scroll underneath */
+@media (max-width: 720px) {
+    #app {
+        grid-template-columns: 1fr;
+        grid-template-rows: 55vh 1fr;
+        grid-template-rows: 55dvh 1fr;
+    }
+
+    #panel {
+        border-left: 0;
+        border-top: 1px solid #ddd6ca;
+    }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "roomy",
+  "version": "1.0.0",
+  "description": "Design things to build from plywood and other sheet stock, in 3D, in the browser, using Three.js",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "cert": "bash scripts/make-cert.sh",
+    "phone": "vite build && vite preview --host --mode https",
+    "test": "vitest run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dchicchon/roomy.git"
+  },
+  "keywords": [],
+  "author": "dchicchon",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dchicchon/roomy/issues"
+  },
+  "homepage": "https://github.com/dchicchon/roomy#readme",
+  "devDependencies": {
+    "jsdom": "^26.1.0",
+    "vite": "^6.4.5",
+    "vitest": "^3.2.7"
+  },
+  "dependencies": {
+    "three": "^0.180.0"
+  }
+}

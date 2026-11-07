@@ -3,11 +3,14 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { formatLength, UNITS } from '../model/units.js';
 import { pickPiece } from '../ui/input.js';
+import { measure, snap, snapTargets } from './measure.js';
 import { bounds, labelAnchors, MM_PER_SCENE_UNIT, pieceTransform } from './transform.js';
 
 const WOOD = 0xd8b88a;
 const WOOD_SELECTED = 0x8fbfe8;
 const EDGE = 0x5a4630;
+const MEASURE_LINE = 0xc0392b;
+const SPLIT_LINE = 0xc0392b;
 const CLICK_SLOP = 6; // px a pointer may move and still count as a tap
 const DOUBLE_TAP_MS = 400;
 
@@ -21,6 +24,14 @@ export class DesignScene {
         this.meshes = new Map();
         // Touch screens have no Shift key; the panel's "select multiple" toggle sets this.
         this.multiSelect = false;
+        // Measure mode: clicks place points instead of selecting. Each
+        // measurement is { a, b } in mm plus the objects drawing it.
+        this.measuring = false;
+        this.measurements = [];
+        this.pendingPoint = null;
+        this.onMeasuringChange = null;
+        // Where the panel's "Split into two" would cut: { pieceId, axis, at }.
+        this.splitPreview = null;
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -53,6 +64,13 @@ export class DesignScene {
             this.scene.add(label);
             return label;
         });
+
+        this.measureGroup = new THREE.Group();
+        this.scene.add(this.measureGroup);
+        this.splitMarker = this._buildSplitMarker();
+        this.snapMarker = this._label('measure-snap');
+        this.snapMarker.visible = false;
+        this.scene.add(this.snapMarker);
 
         this._listenForTaps();
         this._resizeObserver = new ResizeObserver(() => this._resize());
@@ -97,6 +115,172 @@ export class DesignScene {
         }
         this._syncLabels(selected, unit);
         this._syncGrid(unit);
+        this._syncMeasureLabels(unit);
+        this._syncSplitMarker();
+    }
+
+    // ---- split preview ------------------------------------------------------
+
+    setSplitPreview(preview) {
+        this.splitPreview = preview;
+        this._syncSplitMarker();
+    }
+
+    _buildSplitMarker() {
+        const outline = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: SPLIT_LINE, depthTest: false }));
+        const fill = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({
+            color: SPLIT_LINE, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthTest: false,
+        }));
+        outline.renderOrder = 3;
+        fill.renderOrder = 3;
+        const group = new THREE.Group();
+        group.add(fill, outline);
+        group.visible = false;
+        return { group, outline, fill };
+    }
+
+    // The cut plane, drawn inside the piece's mesh. The mesh is a unit cube
+    // scaled to the piece, so the plane sits at at/size - 1/2 along the axis.
+    _syncSplitMarker() {
+        const { group, outline, fill } = this.splitMarker;
+        const preview = this.splitPreview;
+        const piece = preview && this.project.getPiece(preview.pieceId);
+        const mesh = piece && this.meshes.get(piece.id);
+        group.visible = Boolean(mesh);
+        if (!mesh) {
+            return;
+        }
+        const along = preview.at / piece[{ x: 'width', y: 'height', z: 'depth' }[preview.axis]] - 0.5;
+        const [u, v] = ['x', 'y', 'z'].filter((a) => a !== preview.axis);
+        const corner = (s, t) => {
+            const point = new THREE.Vector3();
+            point[preview.axis] = along;
+            point[u] = s;
+            point[v] = t;
+            return point;
+        };
+        const quad = [corner(-0.5, -0.5), corner(0.5, -0.5), corner(0.5, 0.5), corner(-0.5, 0.5)];
+        outline.geometry.setFromPoints(quad);
+        fill.geometry.setFromPoints([quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]]);
+        if (group.parent !== mesh) {
+            mesh.add(group);
+        }
+    }
+
+    // ---- measuring ---------------------------------------------------------
+
+    setMeasuring(on) {
+        if (this.measuring === on) {
+            return;
+        }
+        this.measuring = on;
+        if (!on) {
+            this.clearMeasurements();
+            this.snapMarker.visible = false;
+        }
+        this.renderer.domElement.style.cursor = on ? 'crosshair' : '';
+        if (this.onMeasuringChange) {
+            this.onMeasuringChange(on);
+        }
+    }
+
+    clearMeasurements() {
+        for (const object of [...this.measureGroup.children]) {
+            this.measureGroup.remove(object);
+            if (object.geometry) {
+                object.geometry.dispose();
+            }
+        }
+        this.measurements = [];
+        this.pendingPoint = null;
+    }
+
+    _label(className) {
+        const el = document.createElement('div');
+        el.className = className;
+        return new CSS2DObject(el);
+    }
+
+    _toScene(point) {
+        return new THREE.Vector3(point.x, point.y, point.z).divideScalar(MM_PER_SCENE_UNIT);
+    }
+
+    // The point a click at (clientX, clientY) measures to: a snapped corner
+    // or edge, else wherever it hits a piece, else nothing.
+    _measurePoint(clientX, clientY) {
+        const canvas = this.renderer.domElement;
+        const rect = canvas.getBoundingClientRect();
+        const pointer = { x: clientX - rect.left, y: clientY - rect.top };
+        const project = (point) => {
+            const v = this._toScene(point).project(this.camera);
+            return { x: ((v.x + 1) / 2) * rect.width, y: ((1 - v.y) / 2) * rect.height, visible: v.z < 1 };
+        };
+        const snapped = snap(pointer, snapTargets(this.project.pieces), project);
+        if (snapped) {
+            return snapped;
+        }
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(new THREE.Vector2((pointer.x / rect.width) * 2 - 1, -(pointer.y / rect.height) * 2 + 1), this.camera);
+        const [hit] = raycaster.intersectObjects([...this.meshes.values()], false);
+        if (!hit) {
+            return null;
+        }
+        const mm = hit.point.clone().multiplyScalar(MM_PER_SCENE_UNIT);
+        return { point: { x: mm.x, y: mm.y, z: mm.z }, kind: 'surface' };
+    }
+
+    _measureTap(clientX, clientY) {
+        const hit = this._measurePoint(clientX, clientY);
+        if (!hit) {
+            return;
+        }
+        if (!this.pendingPoint) {
+            const dot = this._label('measure-dot');
+            dot.position.copy(this._toScene(hit.point));
+            this.measureGroup.add(dot);
+            this.pendingPoint = { point: hit.point, dot };
+            return;
+        }
+        const a = this.pendingPoint.point;
+        const b = hit.point;
+        const line = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints([this._toScene(a), this._toScene(b)]),
+            new THREE.LineBasicMaterial({ color: MEASURE_LINE, depthTest: false }),
+        );
+        line.renderOrder = 2;
+        const end = this._label('measure-dot');
+        end.position.copy(this._toScene(b));
+        const label = this._label('measure-label');
+        label.position.copy(this._toScene(a).add(this._toScene(b)).multiplyScalar(0.5));
+        this.measureGroup.add(line, end, label);
+        this.measurements.push({ a, b, label });
+        this.pendingPoint = null;
+        this._syncMeasureLabels(this.project.unit);
+    }
+
+    _syncMeasureLabels(unit) {
+        for (const { a, b, label } of this.measurements) {
+            const m = measure(a, b);
+            const parts = [['X', m.dx], ['Y', m.dy], ['Z', m.dz]]
+                .filter(([, v]) => v > 0.05)
+                .map(([axis, v]) => `${axis} ${formatLength(v, unit)}`);
+            label.element.replaceChildren(formatLength(m.distance, unit));
+            if (parts.length > 1) {
+                const detail = document.createElement('small');
+                detail.textContent = parts.join('  ');
+                label.element.append(detail);
+            }
+        }
+    }
+
+    // While measuring with a mouse, show what a click would snap to.
+    _previewMeasure(ev) {
+        const hit = this.measuring && ev.pointerType !== 'touch' && !ev.buttons && this._measurePoint(ev.clientX, ev.clientY);
+        this.snapMarker.visible = Boolean(hit);
+        if (hit) {
+            this.snapMarker.position.copy(this._toScene(hit.point));
+            this.snapMarker.element.dataset.kind = hit.kind;
+        }
     }
 
     // Point the camera at all pieces, keeping the current viewing direction.
@@ -166,12 +350,20 @@ export class DesignScene {
         canvas.addEventListener('pointerdown', (ev) => {
             down = { x: ev.clientX, y: ev.clientY };
         });
+        canvas.addEventListener('pointermove', (ev) => this._previewMeasure(ev));
+        canvas.addEventListener('pointerleave', () => {
+            this.snapMarker.visible = false;
+        });
         canvas.addEventListener('pointerup', (ev) => {
             if (!down || Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > CLICK_SLOP) {
                 down = null;
                 return;
             }
             down = null;
+            if (this.measuring) {
+                this._measureTap(ev.clientX, ev.clientY);
+                return;
+            }
             const rect = canvas.getBoundingClientRect();
             const pointer = new THREE.Vector2(
                 ((ev.clientX - rect.left) / rect.width) * 2 - 1,

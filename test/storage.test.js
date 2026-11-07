@@ -101,6 +101,19 @@ describe('sheet settings', () => {
     });
 });
 
+describe('files from the cutouts version', () => {
+    it('open with any cutouts ignored', () => {
+        const data = serialize(sampleProject());
+        data.pieces[0].cutouts = [{ id: 1, shape: 'circle', axis: 'z', x: 10, y: 10, w: 30, h: 30 }];
+        data.pieces[1].cutouts = 'not even a list';
+        const project = new Project();
+        loadText(project, JSON.stringify(data));
+        expect(project.pieces).toHaveLength(10);
+        expect(project.pieces.every((piece) => !('cutouts' in piece))).toBe(true);
+        expect(JSON.parse(toJSONText(project)).pieces[0]).not.toHaveProperty('cutouts');
+    });
+});
+
 describe('rejecting bad files', () => {
     const broken = (change) => {
         const data = serialize(sampleProject());

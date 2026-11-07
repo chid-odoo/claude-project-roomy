@@ -32,8 +32,152 @@ html, body {
     touch-action: none;
 }
 
+.view-tools {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: calc(100% - 24px);
+}
+
+.view-tools-extras {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.view-tools-extras[hidden] {
+    display: none;
+}
+
+.view-tools button {
+    box-shadow: 0 2px 8px rgba(43, 38, 32, 0.15);
+}
+
+.view-tools button.active {
+    background: #c0392b;
+    color: #fff;
+}
+
+.view-tools-hint {
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.92);
+    font-size: 12px;
+    color: #6b6152;
+}
+
+.inspector {
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    z-index: 2;
+    transform: translateX(-50%);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 16px;
+    /* Without this, left: 50% leaves the bar only half the view to lay out in. */
+    width: max-content;
+    max-width: calc(100% - 32px);
+    padding: 8px 14px 10px;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid #ddd6ca;
+    border-radius: 10px;
+    box-shadow: 0 4px 18px rgba(43, 38, 32, 0.15);
+}
+
+.inspector .transform-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.block-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #6b6152;
+}
+
+#panel .block-title,
+.inspector .hint {
+    display: none;
+}
+
+.inspector .row {
+    display: flex;
+    gap: 6px;
+}
+
+.inspector .field {
+    width: 80px;
+    margin: 0;
+}
+
+.inspector input[type="text"] {
+    padding: 5px 6px;
+    font-size: 14px;
+}
+
+.inspector .overall {
+    max-width: 200px;
+    margin: 4px 0 0;
+    font-size: 13px;
+}
+
+.measure-dot, .measure-snap {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #c0392b;
+    box-shadow: 0 0 0 2px #fff;
+}
+
+.measure-snap {
+    width: 14px;
+    height: 14px;
+    background: transparent;
+    border: 2px solid #c0392b;
+}
+
+/* Snapped to a corner: a square; to an edge: a ring. */
+.measure-snap[data-kind="corner"] {
+    border-radius: 2px;
+}
+
+.measure-snap[data-kind="surface"] {
+    border-style: dashed;
+}
+
+.measure-label {
+    padding: 3px 7px;
+    border-radius: 4px;
+    background: #c0392b;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.measure-label small {
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    opacity: 0.9;
+}
+
 .label-layer {
     position: absolute;
+    /* Its own stacking level: Three.js gives each label a z-index, which
+       would otherwise put labels above the floating inspector. */
+    z-index: 1;
     top: 0;
     left: 0;
     pointer-events: none;
@@ -246,6 +390,23 @@ button.danger {
 
 .tree .node.active {
     background: #cfe2f4;
+}
+
+details.split {
+    margin: 12px 0 4px;
+    padding: 8px 10px;
+    border: 1px solid #e6dfd2;
+    border-radius: 6px;
+    background: #faf8f4;
+}
+
+details.split summary {
+    cursor: pointer;
+    font-weight: 600;
+}
+
+details.split[open] summary {
+    margin-bottom: 8px;
 }
 
 .overall {

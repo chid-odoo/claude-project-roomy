@@ -35,6 +35,7 @@ export function pickPiece(project, pieceId, { additive = false, double = false }
 // Left/Right: X. Up/Down: Z (away from / toward the default camera).
 // Shift+Up/Down: Y. Ctrl/Cmd+G: group, Ctrl/Cmd+Shift+G: ungroup.
 // Ctrl/Cmd+Z: undo, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y: redo. Ctrl/Cmd+D: duplicate.
+// Backspace or Delete: delete the selection.
 export function keyAction({ key, shiftKey = false, ctrlKey = false, metaKey = false, altKey = false }) {
     if (ctrlKey || metaKey) {
         if (altKey) {
@@ -57,6 +58,9 @@ export function keyAction({ key, shiftKey = false, ctrlKey = false, metaKey = fa
         return null;
     }
     switch (key) {
+        case 'Backspace':
+        case 'Delete':
+            return shiftKey ? null : { type: 'delete' };
         case 'ArrowLeft':
             return shiftKey ? null : { type: 'move', axis: 'x', direction: -1 };
         case 'ArrowRight':
@@ -94,6 +98,10 @@ export function applyKeyAction(project, action, step) {
             return false;
         }
         project.group();
+        return true;
+    }
+    if (action.type === 'delete') {
+        project.remove();
         return true;
     }
     if (action.type === 'duplicate') {

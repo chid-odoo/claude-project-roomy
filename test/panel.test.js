@@ -83,7 +83,11 @@ beforeEach(() => {
     window.location.hash = '';
     document.body.innerHTML = '<aside id="panel"></aside>';
     project = new Project({ unit: 'in' });
-    scene = { frame: vi.fn(), multiSelect: false };
+    scene = {
+        frame: vi.fn(),
+        multiSelect: false,
+        setSplitPreview: vi.fn(),
+    };
     panel = new Panel(document.getElementById('panel'), project, scene);
 });
 
@@ -175,6 +179,72 @@ describe('piece editor', () => {
         button('Delete').click();
         expect(project.pieces).toHaveLength(0);
         expect(treeRows()).toEqual([]);
+    });
+});
+
+describe('split into two', () => {
+    function openSplit() {
+        const details = shown('details.split')[0];
+        details.open = true;
+        details.dispatchEvent(new Event('toggle'));
+        return details;
+    }
+
+    beforeEach(() => {
+        button('Add panel').click(); // 24" x 24" x 3/4"
+        type(input('Height', 1), '30');
+    });
+
+    it('offers the two big dimensions, halfway by default, and previews the cut while open', () => {
+        expect(scene.setSplitPreview).toHaveBeenLastCalledWith(null);
+        openSplit();
+        const options = [...input('Cut across').options].map((o) => o.textContent);
+        expect(options).toEqual(['Height (30")', 'Width (24")']);
+        expect(input('First piece height, from the bottom').value).toBe('15"');
+        expect(shown('details.split .overall')[0].textContent).toBe('Second piece height: 15"');
+        expect(scene.setSplitPreview).toHaveBeenLastCalledWith({ pieceId: 1, axis: 'y', at: toMm(15, 'in') });
+    });
+
+    it('splits where you say, with no kerf, into "A" and "B"', () => {
+        openSplit();
+        type(input('Cut across'), 'x');
+        expect(input('First piece width, from the left').value).toBe('12"');
+        type(input('First piece width, from the left'), '10');
+        expect(shown('details.split .overall')[0].textContent).toBe('Second piece width: 14"');
+        button('Split').click();
+        expect(project.pieces.map((p) => p.name)).toEqual(['Piece 1 A', 'Piece 1 B']);
+        expect(project.pieces[0].width).toBeCloseTo(toMm(10, 'in'));
+        expect(project.pieces[1].width).toBeCloseTo(toMm(14, 'in'));
+        expect(project.selection).toEqual(['piece:1', 'piece:2']);
+        expect(shown('details.split')).toHaveLength(0); // two pieces selected: no piece editor
+        expect(scene.setSplitPreview).toHaveBeenLastCalledWith(null);
+    });
+
+    it('drags the cut and halves it again', () => {
+        openSplit();
+        drag(input('First piece height, from the bottom'), -16); // +4 steps of 1/4"
+        expect(input('First piece height, from the bottom').value).toBe('16"');
+        button('Halve').click();
+        expect(input('First piece height, from the bottom').value).toBe('15"');
+    });
+
+    it('refuses a cut at or past the end of the piece', () => {
+        openSplit();
+        type(input('First piece height, from the bottom'), '30');
+        expect(input('First piece height, from the bottom').value).toBe('30"');
+        expect(shown('details.split .overall')[0].textContent).toBe('The piece is only 30" tall');
+        expect(scene.setSplitPreview).toHaveBeenLastCalledWith(null);
+        button('Split').click();
+        expect(project.pieces).toHaveLength(1);
+        expect(errors()).toEqual(['The cut must be inside the piece']);
+    });
+
+    it('is undone in one step', () => {
+        openSplit();
+        button('Split').click();
+        button('Undo').click();
+        expect(project.pieces).toHaveLength(1);
+        expect(project.pieces[0].height).toBeCloseTo(toMm(30, 'in'));
     });
 });
 
@@ -368,6 +438,88 @@ describe('sheets to buy', () => {
         button('Add panel').click();
         type(input('Depth', 1), '1/4');
         expect(estimate().map((line) => line.split(':')[0])).toEqual(['1/4" plywood', '3/4" plywood']);
+    });
+});
+
+describe('desktop inspector', () => {
+    // A fake media query we can flip between desktop and phone widths.
+    function media(matches) {
+        const listeners = [];
+        return {
+            matches,
+            addEventListener: (type, fn) => listeners.push(fn),
+            set(value) {
+                this.matches = value;
+                listeners.forEach((fn) => fn());
+            },
+        };
+    }
+
+    function desktopPanel(query) {
+        document.body.innerHTML = '<div id="viewport"></div><aside id="panel"></aside>';
+        vi.spyOn(window, 'matchMedia').mockImplementation(() => query);
+        scene.container = document.getElementById('viewport');
+        panel = new Panel(document.getElementById('panel'), project, scene);
+        return {
+            bar: document.querySelector('#viewport .inspector'),
+            side: document.getElementById('panel'),
+        };
+    }
+    const titles = (bar) => [...bar.querySelectorAll('.transform-block')].filter(isShown).map((b) => b.firstChild.textContent);
+
+    beforeEach(() => {
+        window.matchMedia ??= () => null;
+    });
+
+    it('moves size, position and rotation into a bar over the 3D view', () => {
+        const { bar, side } = desktopPanel(media(true));
+        expect(bar.hidden).toBe(true); // nothing selected yet
+        button('Add panel').click();
+        expect(bar.hidden).toBe(false);
+        expect(titles(bar)).toEqual(['Size', 'Position', 'Rotate']);
+        expect(side.querySelector('input[aria-label="X"]')).toBeNull();
+        type(input('X'), '5');
+        expect(project.pieces[0].position.x).toBeCloseTo(toMm(5, 'in'));
+        drag(input('Rotate Z'), -20);
+        expect(project.pieces[0].rotation.z).toBe(5);
+        // Name and the move and group controls stay in the side panel.
+        expect(side.querySelector('input[aria-label="Move step"], .move')).not.toBeNull();
+        expect(side.textContent).toContain('Duplicate');
+    });
+
+    it('shows overall size, position and group rotation for a group', () => {
+        const { bar } = desktopPanel(media(true));
+        button('Add box').click();
+        expect(titles(bar)).toEqual(['Size', 'Position', 'Rotate']);
+        expect(bar.querySelector('.overall').textContent).toMatch(/^5 pieces, overall 24" x 12" x 16"$/);
+        type(input('Rotate Y'), '90');
+        expect(project.groups[0].rotation.y).toBe(90);
+    });
+
+    it('hides when nothing is selected', () => {
+        const { bar } = desktopPanel(media(true));
+        button('Add panel').click();
+        project.clearSelection();
+        expect(bar.hidden).toBe(true);
+    });
+
+    it('puts the fields back in the panel at phone width, and out again', () => {
+        const query = media(true);
+        const { bar, side } = desktopPanel(query);
+        button('Add panel').click();
+        query.set(false);
+        expect(bar.hidden).toBe(true);
+        expect(bar.children).toHaveLength(0);
+        // Back in its original place: after the size row, before the rotation row.
+        const before = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+        const sizeRow = input('Width', 1);
+        const posRow = input('X');
+        expect(side.contains(posRow)).toBe(true);
+        expect(before(sizeRow, posRow)).toBe(true);
+        expect(before(posRow, input('Rotate X'))).toBe(true);
+        query.set(true);
+        expect(bar.hidden).toBe(false);
+        expect(side.querySelector('input[aria-label="X"]')).toBeNull();
     });
 });
 

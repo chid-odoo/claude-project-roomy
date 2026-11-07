@@ -45,6 +45,15 @@ export function pieceToWorld(piece, local) {
     return { x: v.x, y: v.y, z: v.z };
 }
 
+// A distance along one of the piece's own axes ('x', 'y' or 'z'), turned
+// with the piece: the world offset, in mm.
+export function alongPiece(piece, axis, distance) {
+    const v = new Vector3(0, 0, 0);
+    v[axis] = distance;
+    v.applyQuaternion(quaternionOf(piece.rotation));
+    return { x: v.x, y: v.y, z: v.z };
+}
+
 // The eight corners of a piece after rotation, in mm.
 export function pieceCorners(piece) {
     const corners = [];

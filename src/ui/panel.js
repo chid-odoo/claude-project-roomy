@@ -1,26 +1,19 @@
 import { createBox } from '../model/box.js';
 import { buildCutList } from '../model/cutlist.js';
-import { AXES, DIMENSIONS, parseKey, pieceKey } from '../model/project.js';
-import {
-    formatInput, formatLength, MOVE_STEPS, moveSteps, parseLength, THICKNESS_PRESETS, toMm, UNITS,
-} from '../model/units.js';
+import { AXES, DIMENSION_OF_AXIS, DIMENSIONS, parseKey, pieceKey } from '../model/project.js';
+import { formatLength, MOVE_STEPS, moveSteps, THICKNESS_PRESETS, toMm, UNITS } from '../model/units.js';
 import { estimateSheets, SHEET_PRESETS } from '../model/sheets.js';
 import { fileName, loadText, toJSONText } from '../model/storage.js';
 import { bounds } from '../view/transform.js';
 import { buildHelp } from './help.js';
-import { makeScrubbable } from './scrub.js';
+import { el, NumberField } from './fields.js';
+import { Inspector } from './inspector.js';
 import { sheetDiagram, sizeText } from './sheetDiagram.js';
 
 const GAP = 50; // mm between a new item and what is already there
 const MIN_SIZE = 1; // mm; dragging a size field stops here
-
-function el(tag, props = {}, children = []) {
-    const node = Object.assign(document.createElement(tag), props);
-    node.append(...children);
-    return node;
-}
-
-const ANGLE_STEP = 1; // degrees per scrub step
+const LOW_EDGE = { x: 'left', y: 'bottom', z: 'back' }; // where split lengths are measured from
+const capitalize = (word) => word[0].toUpperCase() + word.slice(1);
 const SETTINGS_HASH = '#settings';
 const HELP_HASH = '#help';
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -45,105 +38,6 @@ function gearIcon() {
     return svg;
 }
 
-function parseAngle(text) {
-    const match = /^\s*(-?(?:\d+(?:\.\d+)?|\.\d+))\s*(?:deg)?\s*$/i.exec(text);
-    return match ? parseFloat(match[1]) : NaN;
-}
-
-// A text field holding a number, typed as text so lengths can use fractions
-// like 1 1/2. Drag up/down on the field (mouse) or its label (any pointer,
-// including touch) to change the value; see scrub.js.
-//   kind 'length': value in mm, shown in the project unit, steps by `getStep()`
-//   kind 'angle': value in degrees, steps by 1
-class NumberField {
-    constructor(label, project, onCommit, { kind = 'length', getStep, min } = {}) {
-        this.project = project;
-        this.kind = kind;
-        this.value = 0;
-        this.onCommit = onCommit;
-        this.input = el('input', {
-            type: 'text',
-            inputMode: kind === 'angle' ? 'decimal' : 'text',
-            autocomplete: 'off',
-            spellcheck: false,
-            className: 'scrub',
-        });
-        this.input.setAttribute('aria-label', label);
-        this.input.addEventListener('change', () => {
-            const value = kind === 'angle' ? parseAngle(this.input.value) : parseLength(this.input.value, project.unit);
-            if (!Number.isFinite(value)) {
-                this.fail(kind === 'angle' ? 'Could not read this angle' : 'Could not read this length');
-                return;
-            }
-            this.commit(value);
-        });
-
-        const scrub = {
-            getValue: () => this.value,
-            setValue: (value) => this.commit(value),
-            getStep: kind === 'angle' ? () => ANGLE_STEP : getStep,
-            min,
-            onStart: () => project.beginBatch(),
-            onEnd: () => project.endBatch(),
-        };
-        // On the input, a mouse press that doesn't drag focuses it for typing;
-        // stop the browser focusing (and selecting text) on press so a drag
-        // doesn't leave the field in edit mode.
-        let pointerType = 'mouse';
-        this.input.addEventListener('pointerdown', (ev) => {
-            pointerType = ev.pointerType;
-        });
-        this.input.addEventListener('mousedown', (ev) => {
-            if (pointerType !== 'touch' && document.activeElement !== this.input) {
-                ev.preventDefault();
-            }
-        });
-        makeScrubbable(this.input, {
-            ...scrub,
-            onClick: () => {
-                if (document.activeElement !== this.input) {
-                    this.input.focus();
-                    this.input.select();
-                }
-            },
-        });
-        const handle = el('span', { className: 'scrub-handle', textContent: label });
-        makeScrubbable(handle, { ...scrub, touch: true, onClick: () => this.input.focus() });
-        this.root = el('div', { className: 'field' }, [handle, this.input]);
-    }
-
-    commit(value) {
-        this.value = value;
-        this.clear();
-        this.onCommit(value);
-        this.render();
-    }
-
-    set(value) {
-        this.value = value;
-        this.clear();
-        this.render();
-    }
-
-    render() {
-        if (this.kind === 'angle') {
-            this.input.value = String(Math.round(this.value * 10) / 10);
-        } else {
-            this.input.value = formatInput(this.value, this.project.unit);
-        }
-    }
-
-    fail(message) {
-        this.input.classList.add('invalid');
-        this.input.title = message;
-    }
-
-    clear() {
-        this.input.classList.remove('invalid');
-        this.input.title = '';
-    }
-}
-
 export class Panel {
     constructor(root, project, scene) {
         this.root = root;
@@ -166,6 +60,12 @@ export class Panel {
             [HELP_HASH]: el('div', { className: 'view' }, [this._buildHelp()]),
         };
         root.append(...Object.values(this.views));
+        // Without a 3D view (e.g. in tests) everything stays in the panel.
+        this.inspector = scene.container
+            ? new Inspector(scene.container, [
+                this.sizeBlock, this.selSizeBlock, this.posBlock, this.selPosBlock, this.rotBlock, this.groupRotBlock,
+            ])
+            : null;
         window.addEventListener('hashchange', () => {
             // Mark entries opened from inside the app, so Back can pop them.
             if (window.location.hash && !window.history.state) {
@@ -477,10 +377,11 @@ export class Panel {
                 this.project.rotateGroup(this.project.selectedGroup.id, { [axis]: deg });
             }, { kind: 'angle' }),
         ]));
+        this.groupRotBlock = this._block('Rotate', 'Rotation in degrees, about the centre of the group',
+            AXES.map((axis) => this.groupRotFields[axis].root));
         this.groupFields = el('div', {}, [
             el('label', { className: 'field' }, [el('span', { textContent: 'Group name' }), this.groupNameInput]),
-            el('p', { className: 'hint', textContent: 'Rotation in degrees, about the centre of the group' }),
-            el('div', { className: 'row' }, AXES.map((axis) => this.groupRotFields[axis].root)),
+            this.groupRotBlock,
         ]);
 
         // Single piece: name, size and position.
@@ -498,14 +399,18 @@ export class Panel {
             axis,
             this._field(`Rotate ${axis.toUpperCase()}`, (deg) => update({ rotation: { [axis]: deg } }), { kind: 'angle' }),
         ]));
+        this.sizeBlock = this._block('Size', '', DIMENSIONS.map((dim) => this.dimFields[dim].root));
+        this.posBlock = this._block('Position', 'Position of the corner nearest the origin, before rotation',
+            AXES.map((axis) => this.posFields[axis].root));
+        this.rotBlock = this._block('Rotate', 'Rotation in degrees, about the centre of the piece',
+            AXES.map((axis) => this.rotFields[axis].root));
         this.pieceFields = el('div', {}, [
             el('label', { className: 'field' }, [el('span', { textContent: 'Name' }), this.nameInput]),
-            el('div', { className: 'row' }, DIMENSIONS.map((dim) => this.dimFields[dim].root)),
-            el('p', { className: 'hint', textContent: 'Position of the corner nearest the origin, before rotation' }),
-            el('div', { className: 'row' }, AXES.map((axis) => this.posFields[axis].root)),
-            el('p', { className: 'hint', textContent: 'Rotation in degrees, about the centre of the piece' }),
-            el('div', { className: 'row' }, AXES.map((axis) => this.rotFields[axis].root)),
+            this.sizeBlock,
+            this.posBlock,
+            this.rotBlock,
             el('p', { className: 'hint', textContent: 'Drag a field or its label up or down to change it (Shift: faster, Alt: finer).' }),
+            this._buildSplit(),
         ]);
 
         // Group or several items: overall size and position. Changing a
@@ -515,11 +420,13 @@ export class Panel {
             axis,
             this._field(axis.toUpperCase(), (mm) => this.project.moveSelectionTo(axis, mm)),
         ]));
-        this.selectionFields = el('div', {}, [
+        this.selSizeBlock = el('div', { className: 'transform-block' }, [
+            el('span', { className: 'block-title', textContent: 'Size' }),
             this.overall,
-            el('p', { className: 'hint', textContent: 'Position of the selection\'s corner nearest the origin' }),
-            el('div', { className: 'row' }, AXES.map((axis) => this.selPosFields[axis].root)),
         ]);
+        this.selPosBlock = this._block('Position', 'Position of the selection\'s corner nearest the origin',
+            AXES.map((axis) => this.selPosFields[axis].root));
+        this.selectionFields = el('div', {}, [this.selSizeBlock, this.selPosBlock]);
 
         this.editor = el('section', { hidden: true }, [
             this.editorTitle,
@@ -531,6 +438,106 @@ export class Panel {
             this._buildActions(),
         ]);
         return this.editor;
+    }
+
+    // "Split into two": cut the selected piece across its width, height or
+    // depth. While open, the cut is previewed in the 3D view.
+    _buildSplit() {
+        this.splitState = null; // { pieceId, axis, at }
+        this.splitAxis = el('select');
+        this.splitAxis.addEventListener('change', () => {
+            const piece = this.project.selectedPiece;
+            const axis = this.splitAxis.value;
+            this.splitState = { pieceId: piece.id, axis, at: piece[DIMENSION_OF_AXIS[axis]] / 2 };
+            this._renderSplit();
+        });
+        this.splitAt = this._field('First piece', (mm) => {
+            this.splitState.at = mm;
+            this._renderSplit();
+        }, { min: MIN_SIZE });
+        this.splitRest = el('p', { className: 'overall' });
+        this.splitError = el('p', { className: 'error', hidden: true });
+        const halve = el('button', { type: 'button', className: 'secondary', textContent: 'Halve' });
+        halve.addEventListener('click', () => {
+            const piece = this.project.selectedPiece;
+            this.splitState.at = piece[DIMENSION_OF_AXIS[this.splitState.axis]] / 2;
+            this._renderSplit();
+        });
+        const split = el('button', { type: 'button', textContent: 'Split' });
+        split.addEventListener('click', () => {
+            const { pieceId, axis, at } = this.splitState;
+            try {
+                this.project.splitPiece(pieceId, axis, at);
+                this.splitDetails.open = false;
+                this.splitError.hidden = true;
+            } catch (err) {
+                this.splitError.textContent = err.message;
+                this.splitError.hidden = false;
+            }
+        });
+        this.splitDetails = el('details', { className: 'split' }, [
+            el('summary', { textContent: 'Split into two' }),
+            el('label', { className: 'field' }, [el('span', { textContent: 'Cut across' }), this.splitAxis]),
+            this.splitAt.root,
+            this.splitRest,
+            el('div', { className: 'actions' }, [halve, split]),
+            el('p', { className: 'hint', textContent: 'The cut has no width here; the saw kerf is only allowed for in Sheets to buy.' }),
+            this.splitError,
+        ]);
+        // Opening starts fresh: across the longest side, halfway.
+        this.splitDetails.addEventListener('toggle', () => {
+            if (this.splitDetails.open) {
+                this.splitState = null;
+            }
+            this._renderSplit();
+        });
+        return this.splitDetails;
+    }
+
+    // Cut across one of the piece's two biggest dimensions (never its
+    // thickness), halfway along by default.
+    _renderSplit() {
+        const piece = this.project.selectedPiece;
+        if (!piece) {
+            this.splitState = null;
+            this.scene.setSplitPreview(null);
+            return;
+        }
+        const { unit } = this.project;
+        const axes = [...AXES].sort((a, b) => piece[DIMENSION_OF_AXIS[b]] - piece[DIMENSION_OF_AXIS[a]]).slice(0, 2);
+        const state = this.splitState;
+        if (!state || state.pieceId !== piece.id || !axes.includes(state.axis)) {
+            this.splitState = { pieceId: piece.id, axis: axes[0], at: piece[DIMENSION_OF_AXIS[axes[0]]] / 2 };
+            this.splitError.hidden = true;
+        }
+        const { axis } = this.splitState;
+        const dim = DIMENSION_OF_AXIS[axis];
+        const size = piece[dim];
+        const { at } = this.splitState;
+        const inside = at > 0 && at < size;
+        const options = axes.map((a) => [a, `${capitalize(DIMENSION_OF_AXIS[a])} (${formatLength(piece[DIMENSION_OF_AXIS[a]], unit)})`]);
+        if (this.splitAxis.dataset.options !== JSON.stringify(options)) {
+            this.splitAxis.dataset.options = JSON.stringify(options);
+            this.splitAxis.replaceChildren(...options.map(([value, text]) => el('option', { value, textContent: text })));
+        }
+        this.splitAxis.value = axis;
+        this.splitAt.setLabel(`First piece ${dim}, from the ${LOW_EDGE[axis]}`);
+        this.splitAt.set(at);
+        // Keep what was typed even if it is past the end; Split explains.
+        this.splitRest.textContent = inside
+            ? `Second piece ${dim}: ${formatLength(size - at, unit)}`
+            : `The piece is only ${formatLength(size, unit)} ${dim === 'height' ? 'tall' : dim === 'depth' ? 'deep' : 'wide'}`;
+        this.scene.setSplitPreview(this.splitDetails.open && inside ? { pieceId: piece.id, axis, at } : null);
+    }
+
+    // A titled row of fields that can move between the panel and the
+    // floating inspector. The title shows in the inspector, the hint in the panel.
+    _block(title, hint, fields) {
+        return el('div', { className: 'transform-block' }, [
+            el('span', { className: 'block-title', textContent: title }),
+            ...(hint ? [el('p', { className: 'hint', textContent: hint })] : []),
+            el('div', { className: 'row' }, fields),
+        ]);
     }
 
     // Step size plus -/+ buttons per axis, for touch screens without arrow keys.
@@ -716,7 +723,18 @@ export class Panel {
         this.editorError.hidden = true;
         this.groupFields.hidden = !group;
         this.pieceFields.hidden = !piece;
+        this._renderSplit();
         this.selectionFields.hidden = Boolean(piece) || !selection.length;
+        // The blocks may be in the inspector, outside these containers.
+        for (const block of [this.sizeBlock, this.posBlock, this.rotBlock]) {
+            block.hidden = !piece;
+        }
+        this.selSizeBlock.hidden = this.selectionFields.hidden;
+        this.selPosBlock.hidden = this.selectionFields.hidden;
+        this.groupRotBlock.hidden = !group;
+        if (this.inspector) {
+            this.inspector.show(selection.length > 0);
+        }
         this.groupButton.disabled = selection.length < 2;
         this.ungroupButton.disabled = !selection.some((key) => parseKey(key).kind === 'group');
         if (piece) {

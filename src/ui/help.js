@@ -11,6 +11,9 @@ const SHORTCUTS = [
     ['Ctrl + G', 'Group the selection'],
     ['Ctrl + Shift + G', 'Ungroup'],
     ['Ctrl + D', 'Duplicate the selection'],
+    ['Backspace or Delete', 'Delete the selection'],
+    ['M', 'Measure: turn the measuring tool on or off'],
+    ['Esc', 'Stop measuring'],
     ['Ctrl + Z', 'Undo'],
     ['Ctrl + Shift + Z or Ctrl + Y', 'Redo'],
     ['Drag in the 3D view', 'Orbit the camera'],
@@ -41,7 +44,9 @@ const SECTIONS = [
     ]],
     ['Editing sizes, positions and rotation', [
         [
-            'Select one piece to edit its name, width, height, depth, position and rotation.',
+            'Select one piece to edit its name, width, height, depth, position and rotation. On a computer, '
+                + 'size, position and rotation are in the bar at the bottom of the 3D view; on a phone they '
+                + 'are in this panel.',
             'Type lengths in any unit: 30, 1 1/2, 3/4, 1\' 6", 45 cm or 450 mm all work.',
             'Drag a field up or down to change it; hold Shift for big steps or Alt for fine ones. On a phone, '
                 + 'drag the small label above the field instead.',
@@ -50,6 +55,27 @@ const SECTIONS = [
             'With a group or several items selected, the X / Y / Z fields move everything together and '
                 + 'Rotate X / Y / Z turns a group about its centre.',
             'Move step sets how far the arrow keys and the - / + buttons move things.',
+        ],
+    ]],
+    ['Measuring', [
+        [
+            'Press Measure at the top left of the 3D view (or M), then click or tap two points.',
+            'Points snap to corners and edges when you are close; otherwise they land '
+                + 'where you click on a piece. With a mouse, a marker shows what you will snap to.',
+            'The label gives the straight distance and, below it, how far that is along X, Y and Z.',
+            'Measure as many times as you like; Clear removes them. Leaving measure mode (Measure again or '
+                + 'Esc) clears them too. Measurements are not saved.',
+        ],
+    ]],
+    ['Splitting a board in two', [
+        [
+            'Select one piece and open "Split into two" in the panel.',
+            'Choose which side to cut across (its two biggest dimensions) and how long the first piece is, '
+                + 'measured from the left, bottom or back edge. Halve puts the cut in the middle.',
+            'A red plane shows where the cut goes. Split makes "<name> A" and "<name> B" exactly where the '
+                + 'board was, in the same group.',
+            'The cut has no width here, so the two pieces add up to the original. The saw kerf is only '
+                + 'allowed for in Sheets to buy.',
         ],
     ]],
     ['Groups and copies', [

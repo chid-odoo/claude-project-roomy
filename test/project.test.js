@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { bounds } from '../src/model/geometry.js';
+import { bounds, pieceCorners } from '../src/model/geometry.js';
 import { groupKey, HISTORY_LIMIT, pieceKey, Project } from '../src/model/project.js';
 
 const panel = { width: 600, height: 400, depth: 18 };
@@ -562,6 +562,75 @@ describe('sheet settings', () => {
         const project = new Project();
         expect(() => project.setSheet({ width: 0 })).toThrow('Sheet width');
         project.setSheet({ kerf: 0 });
+        expect(project.canUndo).toBe(false);
+    });
+});
+
+describe('splitPiece', () => {
+    const corners = (pieces) => pieces.flatMap((p) => pieceCorners(p)).map((c) => [c.x, c.y, c.z].map((v) => Math.round(v * 1000) / 1000));
+    const box = (pieces) => {
+        const b = bounds(pieces);
+        return [b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z].map((v) => Math.round(v * 1000) / 1000);
+    };
+
+    it('cuts a piece in two side by side, with no kerf', () => {
+        const project = new Project();
+        project.addPiece({ ...panel, name: 'Shelf', position: { x: 100, y: 50, z: 0 } }); // 600 x 400 x 18
+        const [a, b] = project.splitPiece(1, 'x', 250);
+        expect(a).toMatchObject({ id: 1, name: 'Shelf A', width: 250, height: 400, depth: 18, position: { x: 100, y: 50, z: 0 } });
+        expect(b).toMatchObject({ id: 2, name: 'Shelf B', width: 350, height: 400, depth: 18 });
+        expect(b.position).toEqual({ x: 350, y: 50, z: 0 });
+        expect(a.width + b.width).toBe(600);
+    });
+
+    it('cuts across height or depth too', () => {
+        const project = new Project();
+        project.addPiece(panel);
+        const [a, b] = project.splitPiece(1, 'y', 100);
+        expect([a.height, b.height, b.position.y]).toEqual([100, 300, 100]);
+        const [c, d] = project.splitPiece(2, 'z', 6);
+        expect([c.depth, d.depth, d.position.z]).toEqual([6, 12, 6]);
+    });
+
+    it('keeps a rotated piece exactly where the board was', () => {
+        const project = new Project();
+        project.addPiece({ ...panel, position: { x: 30, y: 20, z: 10 }, rotation: { x: 15, y: 40, z: -25 } });
+        const before = box([project.getPiece(1)]);
+        const [a, b] = project.splitPiece(1, 'x', 200);
+        expect(box([a, b])).toEqual(before);
+        expect(a.rotation).toEqual(b.rotation);
+        // The two parts meet: a's far corners are b's near corners.
+        const shared = corners([a]).filter((c) => corners([b]).some((d) => d.every((v, i) => Math.abs(v - c[i]) < 1e-6)));
+        expect(shared).toHaveLength(4);
+    });
+
+    it('keeps both parts in the original group, right after each other, both selected', () => {
+        const project = projectWith(3);
+        const group = project.group([pieceKey(2), pieceKey(3)]);
+        const [, b] = project.splitPiece(2, 'x', 300);
+        expect(b.groupId).toBe(group.id);
+        expect(project.pieces.map((p) => p.id)).toEqual([1, 2, 4, 3]);
+        expect(project.selection).toEqual([pieceKey(2), pieceKey(4)]);
+        expect(project.piecesIn(groupKey(group.id))).toHaveLength(3);
+    });
+
+    it('is one undo step', () => {
+        const project = projectWith(1);
+        project.splitPiece(1, 'x', 300);
+        project.undo();
+        expect(project.pieces).toHaveLength(1);
+        expect(project.getPiece(1)).toMatchObject({ name: 'Piece 1', width: 600 });
+        project.redo();
+        expect(project.pieces.map((p) => p.name)).toEqual(['Piece 1 A', 'Piece 1 B']);
+    });
+
+    it('rejects cuts outside the piece and unknown axes or pieces', () => {
+        const project = projectWith(1);
+        expect(() => project.splitPiece(1, 'x', 0)).toThrow('inside the piece');
+        expect(() => project.splitPiece(1, 'x', 600)).toThrow('inside the piece');
+        expect(() => project.splitPiece(1, 'x', NaN)).toThrow('inside the piece');
+        expect(() => project.splitPiece(1, 'w', 10)).toThrow('Unknown axis');
+        expect(() => project.splitPiece(9, 'x', 10)).toThrow('No piece');
         expect(project.canUndo).toBe(false);
     });
 });

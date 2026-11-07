@@ -86,6 +86,13 @@ describe('keyAction', () => {
         expect(keyAction({ key: 'z', ctrlKey: true, altKey: true })).toBeNull();
     });
 
+    it('maps Backspace and Delete to delete', () => {
+        expect(keyAction({ key: 'Backspace' })).toEqual({ type: 'delete' });
+        expect(keyAction({ key: 'Delete' })).toEqual({ type: 'delete' });
+        expect(keyAction({ key: 'Backspace', ctrlKey: true })).toBeNull();
+        expect(keyAction({ key: 'Backspace', altKey: true })).toBeNull();
+    });
+
     it('maps Ctrl/Cmd+D to duplicate', () => {
         expect(keyAction({ key: 'd', ctrlKey: true })).toEqual({ type: 'duplicate' });
         expect(keyAction({ key: 'd', metaKey: true })).toEqual({ type: 'duplicate' });
@@ -122,6 +129,17 @@ describe('applyKeyAction', () => {
         pickPiece(project, 1, { additive: true });
         expect(applyKeyAction(project, { type: 'group' }, 10)).toBe(true);
         expect(project.selectedGroup.name).toBe('Group 3');
+    });
+
+    it('deletes the selected piece or whole group, and not without a selection', () => {
+        const project = nestedProject();
+        expect(applyKeyAction(project, { type: 'delete' }, 10)).toBe(false);
+        pickPiece(project, 1); // selects the outer group: pieces 1-3
+        expect(applyKeyAction(project, { type: 'delete' }, 10)).toBe(true);
+        expect(project.pieces.map((p) => p.id)).toEqual([4]);
+        expect(project.groups).toEqual([]);
+        project.undo();
+        expect(project.pieces).toHaveLength(4);
     });
 
     it('duplicates the selection, and not without one', () => {
@@ -166,6 +184,15 @@ describe('bindKeyboard', () => {
         expect(project.getPiece(4).position.x).toBe(0);
         target.dispatchEvent(key('keydown', { key: 'y', ctrlKey: true }));
         expect(project.getPiece(4).position.x).toBe(30);
+    });
+
+    it('leaves Backspace to text fields', () => {
+        const { project, target } = setup();
+        const ev = key('keydown', { key: 'Backspace' });
+        Object.defineProperty(ev, 'target', { value: { tagName: 'INPUT' } });
+        target.dispatchEvent(ev);
+        expect(ev.defaultPrevented).toBe(false);
+        expect(project.pieces).toHaveLength(4);
     });
 
     it('prevents the browser default only when something happened', () => {

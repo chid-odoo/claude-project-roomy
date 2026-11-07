@@ -17,8 +17,14 @@ installed as an app. The ? button in the app explains how to use it.
   (fractions like `1 1/2` or `1' 6"` work) or by dragging a field up and down.
 - **Selection**: click, double-click into groups, Shift+click or "Select
   multiple" for several; arrow keys and -/+ buttons move the selection.
+- **Floating inspector** on desktop: size, position and rotation of the
+  selection in a bar at the bottom of the 3D view (in the panel on phones).
+- **Measuring tool**: click two points, snapping to corners and edges, to get
+  the distance and its X / Y / Z parts.
+- **Split** a board into two pieces at any point along its width, height or
+  depth, with a preview of the cut.
 - **Groups** that can nest, rotate about their centre, be renamed and
-  duplicated.
+  duplicated; Backspace or Delete removes the selection.
 - **Undo and redo** (100 steps) for every change to the design.
 - **Units**: mm, cm, m, inches, or feet and inches, with imperial sizes to the
   nearest 1/16".
@@ -66,8 +72,12 @@ panel is built with DOM calls, the 3D view with Three.js.
       view/              the 3D scene
         scene.js         DesignScene: meshes, camera, labels, picking
         transform.js     model mm -> scene metres
+        measure.js       measuring: snap targets, snapping, distances
       ui/                the side panel and input
         panel.js         Panel: every section of the side panel
+        fields.js        el() helper and NumberField (typed/dragged lengths, angles)
+        inspector.js     floating size/position/rotation bar (desktop)
+        viewTools.js     tools over the 3D view: the Measure button
         input.js         click/double-click picking rules, keyboard shortcuts
         scrub.js         drag-to-change number fields
         sheetDiagram.js  SVG cutting diagrams
@@ -89,6 +99,11 @@ rotation in degrees about its centre. Groups are a tree: each piece has a
 `groupId`, each group a `parentId`. Pieces and groups are both "nodes",
 addressed by keys like `piece:3` or `group:2`; the selection is a list of
 keys. A group left with fewer than two children dissolves.
+
+**Splitting.** `Project.splitPiece(id, axis, at)` shortens the piece to `at`
+along one of its own axes and adds a second piece for the rest. Both are
+placed from the original's centre and rotation, so a rotated board splits
+in place. The cut has no width; kerf is a sheet-estimate concern only.
 
 **Units.** Everything is stored in millimetres. Units only matter at the
 edges: parsing what you type, and formatting labels, fields and lists. The 3D
@@ -166,7 +181,6 @@ can be installed from there on any phone, no certificates needed.
   exporting the cutting diagrams (PDF) to take to the saw.
 - **Joinery**: dados, rabbets and other joints besides butt joints, with the
   cut list adjusting piece sizes to match.
-- **More templates** beyond the box, such as shelves, drawers and cabinets.
 - **Direct manipulation in 3D**: drag pieces and groups with on-screen handles,
   snapping to other pieces' edges and the floor.
 - **Materials**: board lumber as well as sheets, with a shopping list and

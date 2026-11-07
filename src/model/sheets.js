@@ -105,7 +105,13 @@ function packThickness(pieces, sheet) {
         }
         const { target, freeIndex, free, o } = best;
         target.placements.push({
-            id: piece.id, name: piece.name, x: free.x, y: free.y, w: o.w, h: o.h, rotated: o.rotated,
+            id: piece.id,
+            name: piece.name,
+            x: free.x,
+            y: free.y,
+            w: o.w,
+            h: o.h,
+            rotated: o.rotated,
         });
         target.free.splice(freeIndex, 1, ...split(free, o.w, o.h, sheet.kerf));
     }

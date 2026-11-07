@@ -11,11 +11,14 @@
 // display unit and the stock sheet settings are not part of the design and
 // are not recorded.
 
-import { bounds, centroid, normalizeAngle, quaternionOf, rotatePiecesAbout, ZERO_ROTATION } from './geometry.js';
+import {
+    alongPiece, bounds, centroid, normalizeAngle, pieceCenter, quaternionOf, rotatePiecesAbout, ZERO_ROTATION,
+} from './geometry.js';
 import { DEFAULT_SHEET, validateSheet } from './sheets.js';
 
 export const DIMENSIONS = ['width', 'height', 'depth'];
 export const AXES = ['x', 'y', 'z'];
+export const DIMENSION_OF_AXIS = { x: 'width', y: 'height', z: 'depth' };
 
 export const HISTORY_LIMIT = 100;
 
@@ -294,6 +297,55 @@ export class Project {
         Object.assign(piece, next);
         this._emit();
         return piece;
+    }
+
+    // Cut a piece in two across one of its own axes ('x' = its width,
+    // 'y' = height, 'z' = depth). The first piece is `at` mm long, measured
+    // from the piece's low edge (left, bottom or back before rotation). The
+    // cut has no width: the saw kerf only counts in the sheet estimate.
+    // The original becomes "<name> A" and a new "<name> B" follows it, both
+    // exactly where their part of the board was, in the same group, and both
+    // selected. Returns [a, b].
+    splitPiece(id, axis, at) {
+        const piece = this.getPiece(id);
+        if (!piece) {
+            throw new Error(`No piece with id ${id}`);
+        }
+        const dim = DIMENSION_OF_AXIS[axis];
+        if (!dim) {
+            throw new Error(`Unknown axis: ${axis}`);
+        }
+        const size = piece[dim];
+        if (!(Number.isFinite(at) && at > 1e-6 && at < size - 1e-6)) {
+            throw new Error('The cut must be inside the piece');
+        }
+        this._record();
+        const center = pieceCenter(piece);
+        // Corner of a part `length` long whose low edge is `from` along the
+        // axis, keeping the part's centre where it was on the board.
+        const placePart = (from, length) => {
+            const shift = alongPiece(piece, axis, from + length / 2 - size / 2);
+            const dims = { width: piece.width, height: piece.height, depth: piece.depth, [dim]: length };
+            return {
+                [dim]: length,
+                position: {
+                    x: center.x + shift.x - dims.width / 2,
+                    y: center.y + shift.y - dims.height / 2,
+                    z: center.z + shift.z - dims.depth / 2,
+                },
+            };
+        };
+        const second = {
+            ...JSON.parse(JSON.stringify(piece)),
+            ...placePart(at, size - at),
+            id: this._nextPieceId++,
+            name: `${piece.name} B`,
+        };
+        Object.assign(piece, placePart(0, at), { name: `${piece.name} A` });
+        this.pieces.splice(this.pieces.indexOf(piece) + 1, 0, second);
+        this.selection = [pieceKey(piece.id), pieceKey(second.id)];
+        this._emit();
+        return [piece, second];
     }
 
     // Shift every selected piece (including those inside selected groups).

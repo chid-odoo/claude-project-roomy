@@ -27,8 +27,9 @@ describe('style.css themes', () => {
         expect(fallback).toEqual(dark);
     });
 
-    it('defines every token it uses', () => {
-        const defined = new Set(Object.keys(tokenBlocks()[':root']));
+    it('defines every custom property it uses', () => {
+        // Colour tokens, plus layout ones like --panel-width set elsewhere.
+        const defined = new Set([...css.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1].slice(2)));
         const used = [...css.matchAll(/var\(--([\w-]+)\)/g)].map((m) => m[1]);
         expect(used.filter((name) => !defined.has(name))).toEqual([]);
     });

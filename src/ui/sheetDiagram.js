@@ -36,10 +36,12 @@ export function sizeText(w, h, unit) {
 }
 
 // `layout` is one sheet from estimateSheets(); `sheet` is the stock size.
-export function sheetDiagram(layout, sheet, unit) {
-    // Diagrams are shown about 300 px wide for a 2440 mm sheet, so text
-    // needs to be big in sheet terms to be readable at all.
-    const base = Math.min(sheet.width, sheet.length) * 0.09; // preferred font size in mm
+// `textScale` shrinks the label size in sheet terms when the diagram is
+// shown bigger (expanded panel), so more pieces get their name and size.
+export function sheetDiagram(layout, sheet, unit, { textScale = 1 } = {}) {
+    // Docked, diagrams are shown about 300 px wide for a 2440 mm sheet, so
+    // text needs to be big in sheet terms to be readable at all.
+    const base = Math.min(sheet.width, sheet.length) * 0.09 * textScale; // preferred font size in mm
     const min = base * 0.6;
     const pieces = layout.placements.map((p, index) => {
         const number = String(index + 1);

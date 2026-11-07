@@ -13,7 +13,7 @@ const SHORTCUTS = [
     ['Ctrl + D', 'Duplicate the selection'],
     ['Backspace or Delete', 'Delete the selection'],
     ['M', 'Measure: turn the measuring tool on or off'],
-    ['Esc', 'Stop measuring'],
+    ['Esc', 'Stop measuring, or put an expanded panel back'],
     ['Ctrl + Z', 'Undo'],
     ['Ctrl + Shift + Z or Ctrl + Y', 'Redo'],
     ['Drag in the 3D view', 'Orbit the camera'],
@@ -97,6 +97,9 @@ const SECTIONS = [
             'Layouts use straight cuts that run all the way across, as on a table saw or with a circular saw '
                 + 'and a guide, and leave room for the saw blade between pieces.',
             'It is a good estimate, not a guaranteed minimum; buy a spare sheet for mistakes.',
+            'To read the cut list and diagrams in comfort, pull the panel out with the arrow tab on its edge '
+                + '(halfway down on a computer, at the top on a phone). It fills the screen, with bigger text '
+                + 'and diagrams on a computer. Click the tab again or press Esc to put it back.',
         ],
     ]],
     ['Undo, saving and sharing', [

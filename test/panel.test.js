@@ -559,6 +559,68 @@ describe('appearance settings', () => {
     });
 });
 
+describe('expanding the panel', () => {
+    const handle = () => document.querySelector('.panel-handle');
+    const expanded = () => document.body.classList.contains('panel-expanded');
+
+    it('starts docked, and the handle pulls it out to full screen and back', () => {
+        expect(expanded()).toBe(false);
+        expect(handle().getAttribute('aria-expanded')).toBe('false');
+        expect(handle().getAttribute('aria-label')).toBe('Expand panel to full screen');
+        handle().click();
+        expect(expanded()).toBe(true);
+        expect(handle().getAttribute('aria-expanded')).toBe('true');
+        expect(handle().getAttribute('aria-label')).toBe('Collapse panel');
+        handle().click();
+        expect(expanded()).toBe(false);
+    });
+
+    it('stays on the panel edge, outside the part that scrolls', () => {
+        const side = document.getElementById('panel');
+        expect(handle().parentElement).toBe(side);
+        expect(side.querySelector('.panel-scroll').contains(handle())).toBe(false);
+    });
+
+    it('collapses with Esc, unless Esc is stopping the measure tool', () => {
+        handle().click();
+        scene.measuring = true;
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        expect(expanded()).toBe(true);
+        scene.measuring = false;
+        const ev = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+        window.dispatchEvent(ev);
+        expect(expanded()).toBe(false);
+        expect(ev.defaultPrevented).toBe(true);
+    });
+
+    it('fits more names into the bigger sheet diagrams on a computer, not on a phone', () => {
+        window.matchMedia ??= () => null;
+        const wide = vi.spyOn(window, 'matchMedia').mockImplementation(() => ({ matches: false, addEventListener() {} }));
+        button('Add box').click();
+        const phoneDocked = shown('.sheet-piece text').map((t) => t.textContent);
+        handle().click();
+        expect(shown('.sheet-piece text').map((t) => t.textContent)).toEqual(phoneDocked);
+        handle().click();
+        wide.mockImplementation(() => ({ matches: true, addEventListener() {} }));
+        const labelled = () => shown('.sheet-piece text').filter((t) => t.textContent.includes('.')).length;
+        const docked = labelled();
+        handle().click();
+        expect(labelled()).toBeGreaterThan(docked);
+    });
+
+    it('keeps working while expanded: selecting stays expanded', () => {
+        button('Add box').click();
+        handle().click();
+        shown('.tree .node')[1].click();
+        expect(expanded()).toBe(true);
+        expect(project.selection).toEqual(['piece:1']);
+    });
+
+    afterEach(() => {
+        document.body.classList.remove('panel-expanded');
+    });
+});
+
 describe('settings', () => {
     it('opens from the gear, changes units and goes back', async () => {
         button('Add panel').click();

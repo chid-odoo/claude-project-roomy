@@ -34,6 +34,8 @@ installed as an app. The ? button in the app explains how to use it.
   for every sheet.
 - **Light and dark themes**: dark is a warm, lamp-lit room; follows the
   device's dark mode unless set in Settings, with optional soft shadows.
+- **Expandable side panel**: an arrow tab on its edge pulls it out to full
+  screen, with bigger text and side-by-side sheet diagrams on a computer.
 - **Save and share** designs as `.json` files; the current design is also
   kept in the browser automatically.
 
@@ -117,6 +119,13 @@ colour. The dark scene has a dim warm fill plus one warm lamp; that lamp is
 the shadow caster, aimed and fitted around the pieces on every change, with
 an invisible shadow-only floor. Preferences live in `localStorage`, not in
 design files.
+
+**Expanded panel.** The panel's size is a CSS custom property
+(`--panel-width`, `--panel-height` on phones) registered with `@property` so
+it can animate; `.panel-expanded` on `#app` sets it to 100%. The views scroll
+in `.panel-scroll` so the tab stays on the panel's edge. Larger text applies
+on wide screens only, and sheet diagrams get relatively smaller labels there
+so more pieces show their names.
 
 **Units.** Everything is stored in millimetres. Units only matter at the
 edges: parsing what you type, and formatting labels, fields and lists. The 3D

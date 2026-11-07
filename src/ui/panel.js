@@ -8,7 +8,7 @@ import { bounds } from '../view/transform.js';
 import { buildHelp } from './help.js';
 import { THEMES } from './appearance.js';
 import { el, NumberField } from './fields.js';
-import { Inspector } from './inspector.js';
+import { DESKTOP_QUERY, Inspector } from './inspector.js';
 import { sheetDiagram, sizeText } from './sheetDiagram.js';
 
 const GAP = 50; // mm between a new item and what is already there
@@ -63,7 +63,11 @@ export class Panel {
             [SETTINGS_HASH]: el('div', { className: 'view' }, [this._buildSettings()]),
             [HELP_HASH]: el('div', { className: 'view' }, [this._buildHelp()]),
         };
-        root.append(...Object.values(this.views));
+        // The views scroll inside the panel; the expand handle stays put on its edge.
+        this.scrollArea = el('div', { className: 'panel-scroll' }, Object.values(this.views));
+        this.layout = root.parentElement;
+        this.expanded = false;
+        root.append(this._buildExpandHandle(), this.scrollArea);
         // Without a 3D view (e.g. in tests) everything stays in the panel.
         this.inspector = scene.container
             ? new Inspector(scene.container, [
@@ -89,7 +93,50 @@ export class Panel {
         for (const [key, view] of Object.entries(this.views)) {
             view.hidden = key !== hash;
         }
-        this.root.scrollTop = 0;
+        this.scrollArea.scrollTop = 0;
+    }
+
+    // The tab halfway down the panel's edge (top edge on phones) that pulls
+    // the panel out over the whole window, e.g. to read the cut list and
+    // sheet diagrams in comfort. Esc puts it back. Always starts collapsed.
+    _buildExpandHandle() {
+        const chevron = document.createElementNS(SVG_NS, 'svg');
+        chevron.setAttribute('viewBox', '0 0 24 24');
+        chevron.setAttribute('aria-hidden', 'true');
+        const path = document.createElementNS(SVG_NS, 'path');
+        path.setAttribute('d', 'M15 5 L8 12 L15 19'); // points left: "pull this way"
+        chevron.append(path);
+        this.expandHandle = el('button', { type: 'button', className: 'panel-handle' }, [chevron]);
+        this.expandHandle.addEventListener('click', () => this.setExpanded(!this.expanded));
+        window.addEventListener('keydown', (ev) => {
+            // While measuring, Esc belongs to the measure tool.
+            if (ev.key === 'Escape' && this.expanded && !this.scene.measuring) {
+                this.setExpanded(false);
+                ev.preventDefault();
+            }
+        });
+        this._labelExpandHandle();
+        return this.expandHandle;
+    }
+
+    _wide() {
+        return Boolean(window.matchMedia && window.matchMedia(DESKTOP_QUERY).matches);
+    }
+
+    setExpanded(on) {
+        this.expanded = on;
+        if (this.layout) {
+            this.layout.classList.toggle('panel-expanded', on);
+        }
+        this._labelExpandHandle();
+        this._renderEstimate();
+    }
+
+    _labelExpandHandle() {
+        const label = this.expanded ? 'Collapse panel' : 'Expand panel to full screen';
+        this.expandHandle.setAttribute('aria-label', label);
+        this.expandHandle.setAttribute('aria-expanded', String(this.expanded));
+        this.expandHandle.title = `${label}${this.expanded ? ' (Esc)' : ''}`;
     }
 
     _backButton() {
@@ -666,7 +713,8 @@ export class Panel {
             group.sheets.forEach((layout, index) => {
                 parts.push(el('figure', { className: 'sheet' }, [
                     el('figcaption', { textContent: `Sheet ${index + 1} of ${count}` }),
-                    sheetDiagram(layout, sheet, unit),
+                    // Expanded on a computer, diagrams are shown about twice as big.
+                    sheetDiagram(layout, sheet, unit, { textScale: this.expanded && this._wide() ? 0.55 : 1 }),
                     el('ol', { className: 'sheet-legend' }, layout.placements.map((p) => el('li', {
                         textContent: `${p.name}: ${sizeText(p.w, p.h, unit)}${p.rotated ? ' (across the grain)' : ''}`,
                     }))),

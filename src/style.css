@@ -120,11 +120,34 @@ html, body {
     background: var(--bg);
 }
 
+/* The panel's size animates between docked and full screen (expanded).
+   Registering the properties lets them transition; browsers that can't
+   just switch instantly. */
+@property --panel-width {
+    syntax: '<length-percentage>';
+    inherits: true;
+    initial-value: 340px;
+}
+
+@property --panel-height {
+    syntax: '<length-percentage>';
+    inherits: true;
+    initial-value: 45%;
+}
+
 #app {
+    --panel-width: 340px;
+    --panel-height: 45%;
     display: grid;
-    grid-template-columns: 1fr 340px;
+    grid-template-columns: minmax(0, 1fr) var(--panel-width);
     height: 100vh;
     height: 100dvh;
+    transition: --panel-width 0.25s ease, --panel-height 0.25s ease;
+}
+
+#app.panel-expanded {
+    --panel-width: 100%;
+    --panel-height: 100%;
 }
 
 #viewport {
@@ -300,10 +323,65 @@ html, body {
 }
 
 #panel {
-    overflow-y: auto;
-    padding: 12px 16px 32px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
     background: var(--panel);
     border-left: 1px solid var(--border);
+}
+
+.panel-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px 16px 32px;
+}
+
+/* The expand tab: halfway down the panel's left edge, sticking out over the
+   3D view. Its chevron points the way the panel will move. */
+.panel-handle {
+    position: absolute;
+    z-index: 3;
+    top: 50%;
+    left: -14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 56px;
+    padding: 0;
+    transform: translateY(-50%);
+    background: var(--panel);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px var(--shadow);
+}
+
+.panel-handle:hover {
+    background: var(--hover);
+    color: var(--text);
+}
+
+.panel-handle svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform 0.25s ease;
+}
+
+.panel-expanded .panel-handle {
+    left: 6px;
+}
+
+.panel-expanded .panel-handle svg {
+    transform: rotate(180deg);
 }
 
 .panel-header {
@@ -647,16 +725,120 @@ figure.sheet figcaption {
     white-space: normal;
 }
 
-/* Phones: 3D view on top, controls scroll underneath */
+/* Phones: 3D view on top, controls scroll underneath; the expand tab sits
+   on the panel's top edge and pulls it up to full height. */
 @media (max-width: 720px) {
     #app {
         grid-template-columns: 1fr;
-        grid-template-rows: 55vh 1fr;
-        grid-template-rows: 55dvh 1fr;
+        grid-template-rows: minmax(0, 1fr) var(--panel-height);
     }
 
     #panel {
         border-left: 0;
         border-top: 1px solid var(--border);
+    }
+
+    .panel-handle {
+        top: -14px;
+        left: 50%;
+        width: 56px;
+        height: 28px;
+        transform: translateX(-50%);
+    }
+
+    .panel-handle svg {
+        transform: rotate(90deg);
+    }
+
+    .panel-expanded .panel-handle {
+        top: 6px;
+        left: 50%;
+    }
+
+    .panel-expanded .panel-handle svg {
+        transform: rotate(-90deg);
+    }
+}
+
+/* Expanded on a computer: everything bigger and easier to read, in a
+   centred column; the sheet diagrams get large and sit side by side when
+   there is room. On phones expanding gains height, not width, so text stays
+   phone-sized there. */
+@media (min-width: 721px) {
+    .panel-expanded .panel-scroll {
+        padding: 20px 24px 48px;
+        font-size: 17px;
+    }
+
+    .panel-expanded .view {
+        max-width: 1100px;
+        margin: 0 auto;
+    }
+
+    .panel-expanded h1 {
+        font-size: 22px;
+    }
+
+    .panel-expanded h2 {
+        font-size: 16px;
+    }
+
+    .panel-expanded .hint,
+    .panel-expanded .field span {
+        font-size: 14px;
+    }
+
+    .panel-expanded input[type="text"],
+    .panel-expanded select {
+        padding: 10px;
+        font-size: 18px;
+    }
+
+    .panel-expanded button:not(.small):not(.icon):not(.panel-handle) {
+        padding: 11px 16px;
+        font-size: 17px;
+    }
+
+    .panel-expanded .tree .node {
+        padding: 10px 12px;
+        font-size: 16px;
+    }
+
+    .panel-expanded .cutlist {
+        font-size: 17px;
+    }
+
+    .panel-expanded .cutlist th,
+    .panel-expanded .cutlist td {
+        padding: 8px 12px;
+    }
+
+    .panel-expanded .estimate-group {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+        gap: 8px 28px;
+    }
+
+    .panel-expanded .estimate-group > :not(figure) {
+        grid-column: 1 / -1;
+    }
+
+    .panel-expanded .estimate-line {
+        font-size: 19px;
+    }
+
+    .panel-expanded figure.sheet figcaption {
+        font-size: 14px;
+    }
+
+    .panel-expanded .sheet-legend {
+        font-size: 15px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #app,
+    .panel-handle svg {
+        transition: none;
     }
 }

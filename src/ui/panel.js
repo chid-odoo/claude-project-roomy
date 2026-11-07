@@ -120,7 +120,8 @@ export class Panel {
     }
 
     _wide() {
-        return Boolean(window.matchMedia && window.matchMedia(DESKTOP_QUERY).matches);
+        const query = window.matchMedia ? window.matchMedia(DESKTOP_QUERY) : null;
+        return Boolean(query && query.matches);
     }
 
     setExpanded(on) {

@@ -17,6 +17,8 @@ if (!window.PointerEvent) {
     };
 }
 Element.prototype.setPointerCapture ??= () => {};
+// Nor matchMedia: stand in for a phone-width screen; tests override it.
+window.matchMedia ??= () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
 // Nor Blob.text(), which every browser the app targets has.
 Blob.prototype.text ??= function text() {
     return new Promise((resolve) => {
@@ -467,10 +469,6 @@ describe('desktop inspector', () => {
     }
     const titles = (bar) => [...bar.querySelectorAll('.transform-block')].filter(isShown).map((b) => b.firstChild.textContent);
 
-    beforeEach(() => {
-        window.matchMedia ??= () => null;
-    });
-
     it('moves size, position and rotation into a bar over the 3D view', () => {
         const { bar, side } = desktopPanel(media(true));
         expect(bar.hidden).toBe(true); // nothing selected yet
@@ -594,7 +592,6 @@ describe('expanding the panel', () => {
     });
 
     it('fits more names into the bigger sheet diagrams on a computer, not on a phone', () => {
-        window.matchMedia ??= () => null;
         const wide = vi.spyOn(window, 'matchMedia').mockImplementation(() => ({ matches: false, addEventListener() {} }));
         button('Add box').click();
         const phoneDocked = shown('.sheet-piece text').map((t) => t.textContent);

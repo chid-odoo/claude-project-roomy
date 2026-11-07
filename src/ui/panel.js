@@ -6,6 +6,7 @@ import { estimateSheets, SHEET_PRESETS } from '../model/sheets.js';
 import { fileName, loadText, toJSONText } from '../model/storage.js';
 import { bounds } from '../view/transform.js';
 import { buildHelp } from './help.js';
+import { THEMES } from './appearance.js';
 import { el, NumberField } from './fields.js';
 import { Inspector } from './inspector.js';
 import { sheetDiagram, sizeText } from './sheetDiagram.js';
@@ -39,7 +40,10 @@ function gearIcon() {
 }
 
 export class Panel {
-    constructor(root, project, scene) {
+    // `appearance` (theme and shadows, see appearance.js) is optional; without
+    // it Settings has no Appearance section.
+    constructor(root, project, scene, { appearance = null } = {}) {
+        this.appearance = appearance;
         this.root = root;
         this.project = project;
         this.scene = scene;
@@ -140,6 +144,7 @@ export class Panel {
                 el('h1', { textContent: 'Settings' }),
                 el('div', { className: 'header-actions' }, [this._helpButton(), this._backButton()]),
             ]),
+            ...(this.appearance ? [this._buildAppearance()] : []),
             this._buildUnits(),
             this._buildSheetSettings(),
         ]);
@@ -209,6 +214,26 @@ export class Panel {
         const field = new NumberField(label, this.project, onCommit, { getStep: () => this.step, ...options });
         this.fields.push(field);
         return field;
+    }
+
+    _buildAppearance() {
+        const { appearance } = this;
+        const theme = el('select', {}, Object.entries(THEMES).map(([value, text]) => el('option', { value, textContent: text })));
+        theme.value = appearance.theme;
+        theme.addEventListener('change', () => appearance.setTheme(theme.value));
+        const shadows = el('input', { type: 'checkbox', checked: appearance.shadows });
+        shadows.addEventListener('change', () => appearance.setShadows(shadows.checked));
+        appearance.onChange(() => {
+            theme.value = appearance.theme;
+            shadows.checked = appearance.shadows;
+        });
+        return el('section', {}, [
+            el('h2', { textContent: 'Appearance' }),
+            el('label', { className: 'field' }, [el('span', { textContent: 'Theme' }), theme]),
+            el('p', { className: 'hint', textContent: 'Match device follows your computer or phone\'s dark mode.' }),
+            el('label', { className: 'check' }, [shadows, ' Soft shadows']),
+            el('p', { className: 'hint', textContent: 'The lamp casts shadows on the floor. Turn off if the 3D view feels slow.' }),
+        ]);
     }
 
     _buildUnits() {

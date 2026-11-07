@@ -1,3 +1,109 @@
+/* Colour tokens. data-theme is set by src/ui/appearance.js; before it runs
+   (first paint), the device's dark setting is used so there is no white flash. */
+:root {
+    color-scheme: light;
+    --bg: #f2f0eb;
+    --panel: #fff;
+    --text: #2b2620;
+    --muted: #6b6152;
+    --faint: #8a806f;
+    --border: #ddd6ca;
+    --line: #eee8de;
+    --hover: #f2ede4;
+    --input-bg: #fff;
+    --input-border: #cfc6b8;
+    --invalid-bg: #fdf0ee;
+    --accent: #8a5a2b;
+    --secondary: #ece5d9;
+    --on-strong: #fff;
+    --danger: #c0392b;
+    --danger-border: #e3b7b0;
+    --measure: #c0392b;
+    --node: #f6f2ea;
+    --node-within: #ebf2f9;
+    --node-active: #cfe2f4;
+    --card: #faf8f4;
+    --card-border: #e6dfd2;
+    --overlay: rgba(255, 255, 255, 0.95);
+    --shadow: rgba(43, 38, 32, 0.15);
+    --label-bg: rgba(43, 38, 32, 0.85);
+    --sheet-stock: #e9e3d8;
+    --sheet-edge: #8a806f;
+    --sheet-piece: #d8b88a;
+    --sheet-piece-edge: #5a4630;
+    --sheet-text: #2b2620;
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #1d1a17;
+    --panel: #24201c;
+    --text: #ece4d8;
+    --muted: #b3a593;
+    --faint: #8f8372;
+    --border: #3a332c;
+    --line: #302a24;
+    --hover: #332d27;
+    --input-bg: #2c2722;
+    --input-border: #4a4138;
+    --invalid-bg: #3d2420;
+    --accent: #b9773a;
+    --secondary: #38312a;
+    --on-strong: #fff8ee;
+    --danger: #ec7e6c;
+    --danger-border: #6b3a33;
+    --measure: #d9483a;
+    --node: #2c2722;
+    --node-within: #26303b;
+    --node-active: #2f4a63;
+    --card: #29241f;
+    --card-border: #3a332c;
+    --overlay: rgba(36, 32, 28, 0.94);
+    --shadow: rgba(0, 0, 0, 0.45);
+    --label-bg: rgba(12, 10, 8, 0.85);
+    --sheet-stock: #2f2a24;
+    --sheet-edge: #7d7262;
+    --sheet-piece: #b9925f;
+    --sheet-piece-edge: #3d2f20;
+    --sheet-text: #1b1612;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+        color-scheme: dark;
+        --bg: #1d1a17;
+        --panel: #24201c;
+        --text: #ece4d8;
+        --muted: #b3a593;
+        --faint: #8f8372;
+        --border: #3a332c;
+        --line: #302a24;
+        --hover: #332d27;
+        --input-bg: #2c2722;
+        --input-border: #4a4138;
+        --invalid-bg: #3d2420;
+        --accent: #b9773a;
+        --secondary: #38312a;
+        --on-strong: #fff8ee;
+        --danger: #ec7e6c;
+        --danger-border: #6b3a33;
+        --measure: #d9483a;
+        --node: #2c2722;
+        --node-within: #26303b;
+        --node-active: #2f4a63;
+        --card: #29241f;
+        --card-border: #3a332c;
+        --overlay: rgba(36, 32, 28, 0.94);
+        --shadow: rgba(0, 0, 0, 0.45);
+        --label-bg: rgba(12, 10, 8, 0.85);
+        --sheet-stock: #2f2a24;
+        --sheet-edge: #7d7262;
+        --sheet-piece: #b9925f;
+        --sheet-piece-edge: #3d2f20;
+        --sheet-text: #1b1612;
+    }
+}
+
 * {
     box-sizing: border-box;
 }
@@ -10,8 +116,8 @@ html, body {
     margin: 0;
     height: 100%;
     font: 15px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-    color: #2b2620;
-    background: #f2f0eb;
+    color: var(--text);
+    background: var(--bg);
 }
 
 #app {
@@ -54,20 +160,20 @@ html, body {
 }
 
 .view-tools button {
-    box-shadow: 0 2px 8px rgba(43, 38, 32, 0.15);
+    box-shadow: 0 2px 8px var(--shadow);
 }
 
 .view-tools button.active {
-    background: #c0392b;
-    color: #fff;
+    background: var(--measure);
+    color: var(--on-strong);
 }
 
 .view-tools-hint {
     padding: 4px 8px;
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.92);
+    background: var(--overlay);
     font-size: 12px;
-    color: #6b6152;
+    color: var(--muted);
 }
 
 .inspector {
@@ -84,10 +190,10 @@ html, body {
     width: max-content;
     max-width: calc(100% - 32px);
     padding: 8px 14px 10px;
-    background: rgba(255, 255, 255, 0.96);
-    border: 1px solid #ddd6ca;
+    background: var(--overlay);
+    border: 1px solid var(--border);
     border-radius: 10px;
-    box-shadow: 0 4px 18px rgba(43, 38, 32, 0.15);
+    box-shadow: 0 4px 18px var(--shadow);
 }
 
 .inspector .transform-block {
@@ -101,7 +207,7 @@ html, body {
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #6b6152;
+    color: var(--muted);
 }
 
 #panel .block-title,
@@ -134,15 +240,15 @@ html, body {
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: #c0392b;
-    box-shadow: 0 0 0 2px #fff;
+    background: var(--measure);
+    box-shadow: 0 0 0 2px var(--panel);
 }
 
 .measure-snap {
     width: 14px;
     height: 14px;
     background: transparent;
-    border: 2px solid #c0392b;
+    border: 2px solid var(--measure);
 }
 
 /* Snapped to a corner: a square; to an edge: a ring. */
@@ -157,8 +263,8 @@ html, body {
 .measure-label {
     padding: 3px 7px;
     border-radius: 4px;
-    background: #c0392b;
-    color: #fff;
+    background: var(--measure);
+    color: var(--on-strong);
     font-size: 13px;
     font-weight: 600;
     text-align: center;
@@ -186,8 +292,8 @@ html, body {
 .dim-label {
     padding: 2px 6px;
     border-radius: 4px;
-    background: rgba(43, 38, 32, 0.85);
-    color: #fff;
+    background: var(--label-bg);
+    color: var(--on-strong);
     font-size: 13px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -196,8 +302,8 @@ html, body {
 #panel {
     overflow-y: auto;
     padding: 12px 16px 32px;
-    background: #fff;
-    border-left: 1px solid #ddd6ca;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
 }
 
 .panel-header {
@@ -206,7 +312,7 @@ html, body {
     justify-content: space-between;
     gap: 8px;
     padding-bottom: 8px;
-    border-bottom: 1px solid #eee8de;
+    border-bottom: 1px solid var(--line);
 }
 
 .panel-header h1 {
@@ -233,11 +339,11 @@ button.icon {
     display: inline-flex;
     padding: 8px;
     background: transparent;
-    color: #6b6152;
+    color: var(--muted);
 }
 
 button.icon:hover {
-    background: #f2ede4;
+    background: var(--hover);
 }
 
 button.icon.help-icon {
@@ -256,7 +362,7 @@ button.icon svg {
 
 section {
     padding: 12px 0;
-    border-bottom: 1px solid #eee8de;
+    border-bottom: 1px solid var(--line);
 }
 
 h2 {
@@ -264,7 +370,7 @@ h2 {
     font-size: 14px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #6b6152;
+    color: var(--muted);
 }
 
 .field {
@@ -275,7 +381,7 @@ h2 {
 .field span {
     display: block;
     font-size: 12px;
-    color: #6b6152;
+    color: var(--muted);
 }
 
 /* Drag up/down to change: the label works with touch, the input with a mouse */
@@ -300,15 +406,15 @@ input[type="text"], select {
     width: 100%;
     padding: 8px;
     font-size: 16px;
-    border: 1px solid #cfc6b8;
+    border: 1px solid var(--input-border);
     border-radius: 6px;
-    background: #fff;
+    background: var(--input-bg);
     color: inherit;
 }
 
 input.invalid {
-    border-color: #c0392b;
-    background: #fdf0ee;
+    border-color: var(--danger);
+    background: var(--invalid-bg);
 }
 
 .row {
@@ -327,31 +433,31 @@ button {
     font-size: 15px;
     border: 0;
     border-radius: 6px;
-    background: #8a5a2b;
-    color: #fff;
+    background: var(--accent);
+    color: var(--on-strong);
     cursor: pointer;
 }
 
 button.secondary {
-    background: #ece5d9;
+    background: var(--secondary);
     color: inherit;
 }
 
 button.danger {
-    background: #fff;
-    color: #c0392b;
-    border: 1px solid #e3b7b0;
+    background: var(--panel);
+    color: var(--danger);
+    border: 1px solid var(--danger-border);
 }
 
 .hint {
     margin: 0 0 8px;
     font-size: 12px;
-    color: #8a806f;
+    color: var(--faint);
 }
 
 .error {
     margin: 0 0 8px;
-    color: #c0392b;
+    color: var(--danger);
 }
 
 .tree, .tree ul {
@@ -366,7 +472,7 @@ button.danger {
 
 .tree ul {
     padding-left: 14px;
-    border-left: 2px solid #eee8de;
+    border-left: 2px solid var(--line);
     margin-left: 6px;
 }
 
@@ -376,7 +482,7 @@ button.danger {
     padding: 8px;
     text-align: left;
     font-size: 14px;
-    background: #f6f2ea;
+    background: var(--node);
     color: inherit;
 }
 
@@ -385,19 +491,19 @@ button.danger {
 }
 
 .tree .node.within {
-    background: #ebf2f9;
+    background: var(--node-within);
 }
 
 .tree .node.active {
-    background: #cfe2f4;
+    background: var(--node-active);
 }
 
 details.split {
     margin: 12px 0 4px;
     padding: 8px 10px;
-    border: 1px solid #e6dfd2;
+    border: 1px solid var(--card-border);
     border-radius: 6px;
-    background: #faf8f4;
+    background: var(--card);
 }
 
 details.split summary {
@@ -462,7 +568,7 @@ button:disabled {
     padding: 5px 6px;
     text-align: left;
     vertical-align: top;
-    border-bottom: 1px solid #eee8de;
+    border-bottom: 1px solid var(--line);
 }
 
 .shortcuts th {
@@ -485,7 +591,7 @@ figure.sheet {
 
 figure.sheet figcaption {
     font-size: 12px;
-    color: #6b6152;
+    color: var(--muted);
     margin-bottom: 4px;
 }
 
@@ -496,19 +602,19 @@ figure.sheet figcaption {
 }
 
 .sheet-stock {
-    fill: #e9e3d8;
-    stroke: #8a806f;
+    fill: var(--sheet-stock);
+    stroke: var(--sheet-edge);
     stroke-width: 1px;
 }
 
 .sheet-piece rect {
-    fill: #d8b88a;
-    stroke: #5a4630;
+    fill: var(--sheet-piece);
+    stroke: var(--sheet-piece-edge);
     stroke-width: 1px;
 }
 
 .sheet-piece text {
-    fill: #2b2620;
+    fill: var(--sheet-text);
     font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -533,7 +639,7 @@ figure.sheet figcaption {
 .cutlist th, .cutlist td {
     padding: 4px 6px;
     text-align: left;
-    border-bottom: 1px solid #eee8de;
+    border-bottom: 1px solid var(--line);
     white-space: nowrap;
 }
 
@@ -551,6 +657,6 @@ figure.sheet figcaption {
 
     #panel {
         border-left: 0;
-        border-top: 1px solid #ddd6ca;
+        border-top: 1px solid var(--border);
     }
 }

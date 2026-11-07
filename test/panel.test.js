@@ -523,6 +523,42 @@ describe('desktop inspector', () => {
     });
 });
 
+describe('appearance settings', () => {
+    function withAppearance() {
+        document.body.innerHTML = '<aside id="panel"></aside>';
+        const appearance = {
+            theme: 'system',
+            shadows: true,
+            listeners: [],
+            onChange(fn) { this.listeners.push(fn); },
+            setTheme: vi.fn(function setTheme(theme) { this.theme = theme; this.listeners.forEach((fn) => fn(this)); }),
+            setShadows: vi.fn(function setShadows(on) { this.shadows = on; this.listeners.forEach((fn) => fn(this)); }),
+        };
+        panel = new Panel(document.getElementById('panel'), project, scene, { appearance });
+        return appearance;
+    }
+
+    it('chooses the theme and turns shadows off in Settings', async () => {
+        const appearance = withAppearance();
+        window.location.hash = '#settings';
+        await tick();
+        expect([...input('Theme').options].map((o) => o.textContent)).toEqual(['Match device', 'Light', 'Dark']);
+        expect(input('Theme').value).toBe('system');
+        type(input('Theme'), 'dark');
+        expect(appearance.setTheme).toHaveBeenCalledWith('dark');
+        const shadows = shown('.check input').find((c) => c.parentElement.textContent.includes('Soft shadows'));
+        expect(shadows.checked).toBe(true);
+        shadows.click();
+        expect(appearance.setShadows).toHaveBeenCalledWith(false);
+    });
+
+    it('is left out without appearance preferences', async () => {
+        window.location.hash = '#settings';
+        await tick();
+        expect(shown('h2').map((h) => h.textContent)).not.toContain('Appearance');
+    });
+});
+
 describe('settings', () => {
     it('opens from the gear, changes units and goes back', async () => {
         button('Add panel').click();

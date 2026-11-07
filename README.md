@@ -32,6 +32,8 @@ installed as an app. The ? button in the app explains how to use it.
 - **Sheets to buy**: packs the pieces onto stock sheets (4' x 8' by default),
   shows how many each thickness needs, and draws a to-scale cutting diagram
   for every sheet.
+- **Light and dark themes**: dark is a warm, lamp-lit room; follows the
+  device's dark mode unless set in Settings, with optional soft shadows.
 - **Save and share** designs as `.json` files; the current design is also
   kept in the browser automatically.
 
@@ -78,6 +80,7 @@ panel is built with DOM calls, the 3D view with Three.js.
         fields.js        el() helper and NumberField (typed/dragged lengths, angles)
         inspector.js     floating size/position/rotation bar (desktop)
         viewTools.js     tools over the 3D view: the Measure button
+        appearance.js    theme (match device / light / dark) and shadow preferences
         input.js         click/double-click picking rules, keyboard shortcuts
         scrub.js         drag-to-change number fields
         sheetDiagram.js  SVG cutting diagrams
@@ -104,6 +107,16 @@ keys. A group left with fewer than two children dissolves.
 along one of its own axes and adds a second piece for the rest. Both are
 placed from the original's centre and rotation, so a rotated board splits
 in place. The cut has no width; kerf is a sheet-estimate concern only.
+
+**Themes.** Every colour in `style.css` is a token (`--bg`, `--panel`,
+`--text`...) defined once for light and once for dark; a test keeps raw
+colours out of the rest of the file. `Appearance` sets `<html data-theme>`
+from the saved choice or the device's `prefers-color-scheme`, and tells
+`DesignScene`, which swaps its background, lights, grid and selection
+colour. The dark scene has a dim warm fill plus one warm lamp; that lamp is
+the shadow caster, aimed and fitted around the pieces on every change, with
+an invisible shadow-only floor. Preferences live in `localStorage`, not in
+design files.
 
 **Units.** Everything is stored in millimetres. Units only matter at the
 edges: parsing what you type, and formatting labels, fields and lists. The 3D
@@ -185,7 +198,7 @@ can be installed from there on any phone, no certificates needed.
   snapping to other pieces' edges and the floor.
 - **Materials**: board lumber as well as sheets, with a shopping list and
   price estimate.
-- **Comfort**: collapsible groups in the piece list, keeping pieces above the
-  floor, and a dark theme.
+- **Comfort**: collapsible groups in the piece list, and keeping pieces above
+  the floor.
 - **Desktop or mobile packaging** if a store app is ever needed; the web code
   can be wrapped (e.g. Electron or Capacitor) without changing it.

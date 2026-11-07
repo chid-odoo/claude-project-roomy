@@ -111,6 +111,10 @@ const SECTIONS = [
     ['Settings', [
         'Open Settings with the gear icon at the top of the panel.',
         [
+            'Theme: Match device (dark when your computer or phone is in dark mode), Light, or Dark. Dark is '
+                + 'a warm, lamp-lit room that is easier on the eyes in the evening.',
+            'Soft shadows: the lamp casts shadows on the floor, which helps judge heights. Turn it off if the '
+                + '3D view feels slow. Theme and shadows are remembered on this device, not saved in designs.',
             'Units: how lengths are shown and how plain numbers you type are read. Millimetres, centimetres, '
                 + 'metres, inches, or feet and inches. Imperial sizes are rounded to the nearest 1/16". '
                 + 'Changing units never changes your design, only how it is shown, and it is saved with the file.',

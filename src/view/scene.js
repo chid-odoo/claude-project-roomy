@@ -7,7 +7,18 @@ import { measure, snap, snapTargets } from './measure.js';
 import { bounds, labelAnchors, MM_PER_SCENE_UNIT, pieceTransform } from './transform.js';
 
 const WOOD = 0xd8b88a;
-const WOOD_SELECTED = 0x8fbfe8;
+// Per-theme look of the 3D view. Dark is an evening room: dark walls fading
+// to a slightly lighter floor, a dim warm fill and one warm lamp to the side.
+const LOOKS = {
+    light: {
+        top: 0xf2f0eb, bottom: 0xf2f0eb, grid: [0xb5ada0, 0xd6d0c4], selected: 0x8fbfe8,
+        fill: [0xffffff, 0x8a8070, 2], lamp: [0xffffff, 1.5], lampFrom: [2, 4, 3], shadow: 0.18,
+    },
+    dark: {
+        top: 0x14110e, bottom: 0x2b251f, grid: [0x564b40, 0x362f28], selected: 0x7fb0dd,
+        fill: [0xffe8d0, 0x14110e, 0.6], lamp: [0xffe2c4, 2.1], lampFrom: [-2, 3, 1.5], shadow: 0.5,
+    },
+};
 const EDGE = 0x5a4630;
 const MEASURE_LINE = 0xc0392b;
 const SPLIT_LINE = 0xc0392b;
@@ -42,11 +53,21 @@ export class DesignScene {
         container.appendChild(this.labelRenderer.domElement);
 
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0xf2f0eb);
-        this.scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8070, 2));
-        const sun = new THREE.DirectionalLight(0xffffff, 1.5);
-        sun.position.set(2, 4, 3);
-        this.scene.add(sun);
+        this.fill = new THREE.HemisphereLight();
+        // The lamp is the one light that casts shadows; sync() aims it and
+        // fits its shadow camera around the pieces.
+        this.lamp = new THREE.DirectionalLight();
+        this.lamp.castShadow = true;
+        this.lamp.shadow.mapSize.set(2048, 2048);
+        this.lamp.shadow.bias = -0.0004;
+        this.lamp.shadow.normalBias = 0.003;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        // An invisible floor that only shows the shadows falling on it.
+        this.floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.ShadowMaterial());
+        this.floor.rotation.x = -Math.PI / 2;
+        this.floor.position.y = -0.0002;
+        this.floor.receiveShadow = true;
+        this.scene.add(this.fill, this.lamp, this.lamp.target, this.floor);
 
         this.camera = new THREE.PerspectiveCamera(45, 1, 0.01, 200);
         this.camera.position.set(1.2, 1, 1.6);
@@ -77,6 +98,9 @@ export class DesignScene {
         this._resizeObserver.observe(container);
         this._resize();
 
+        this.theme = null;
+        this.setTheme('light');
+        this.setShadows(true);
         this.project.onChange(() => this.sync());
         this.sync();
         this.renderer.setAnimationLoop(() => {
@@ -104,6 +128,8 @@ export class DesignScene {
                 mesh = new THREE.Mesh(BOX, new THREE.MeshStandardMaterial({ color: WOOD, roughness: 0.85 }));
                 mesh.add(new THREE.LineSegments(BOX_EDGES, new THREE.LineBasicMaterial({ color: EDGE })));
                 mesh.userData.pieceId = piece.id;
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
                 this.scene.add(mesh);
                 this.meshes.set(piece.id, mesh);
             }
@@ -111,8 +137,9 @@ export class DesignScene {
             mesh.scale.set(...scale);
             mesh.position.set(...center);
             mesh.rotation.set(...rotation);
-            mesh.material.color.setHex(selectedIds.has(piece.id) ? WOOD_SELECTED : WOOD);
+            mesh.material.color.setHex(selectedIds.has(piece.id) ? LOOKS[this.theme].selected : WOOD);
         }
+        this._aimLamp();
         this._syncLabels(selected, unit);
         this._syncGrid(unit);
         this._syncMeasureLabels(unit);
@@ -324,10 +351,64 @@ export class DesignScene {
         }
     }
 
+    // ---- theme and shadows ---------------------------------------------------
+
+    setTheme(theme) {
+        const look = LOOKS[theme];
+        if (!look || theme === this.theme) {
+            return;
+        }
+        this.theme = theme;
+        this.scene.background = look.top === look.bottom ? new THREE.Color(look.top) : gradientTexture(look.top, look.bottom);
+        this.fill.color.setHex(look.fill[0]);
+        this.fill.groundColor.setHex(look.fill[1]);
+        this.fill.intensity = look.fill[2];
+        this.lamp.color.setHex(look.lamp[0]);
+        this.lamp.intensity = look.lamp[1];
+        this.floor.material.opacity = look.shadow;
+        this.sync();
+    }
+
+    setShadows(on) {
+        this.renderer.shadowMap.enabled = on;
+        this.floor.visible = on;
+        // Materials compile differently with shadows; rebuild them.
+        this.scene.traverse((object) => {
+            if (object.material) {
+                object.material.needsUpdate = true;
+            }
+        });
+    }
+
+    // Put the lamp up and to the side of the pieces, and fit its shadow
+    // camera around them so the shadow map is spent where it shows.
+    _aimLamp() {
+        const box = bounds(this.project.pieces);
+        const s = MM_PER_SCENE_UNIT;
+        const center = box
+            ? new THREE.Vector3(box.min.x + box.max.x, box.min.y + box.max.y, box.min.z + box.max.z).divideScalar(2 * s)
+            : new THREE.Vector3();
+        const radius = box
+            ? Math.max(0.3, new THREE.Vector3(box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z).length() / (2 * s))
+            : 1;
+        const from = new THREE.Vector3(...LOOKS[this.theme].lampFrom).normalize();
+        this.lamp.target.position.copy(center);
+        this.lamp.position.copy(center).addScaledVector(from, radius * 4);
+        const camera = this.lamp.shadow.camera;
+        camera.left = -radius * 1.6;
+        camera.right = radius * 1.6;
+        camera.top = radius * 1.6;
+        camera.bottom = -radius * 1.6;
+        camera.near = radius * 0.5;
+        camera.far = radius * 8;
+        camera.updateProjectionMatrix();
+    }
+
     // A floor grid in the user's units: 10 cm squares or 1 ft squares.
     _syncGrid(unit) {
         const imperial = Boolean(UNITS[unit].imperial);
-        if (this.grid && this.grid.userData.imperial === imperial) {
+        const key = `${imperial}-${this.theme}`;
+        if (this.grid && this.grid.userData.key === key) {
             return;
         }
         if (this.grid) {
@@ -336,8 +417,8 @@ export class DesignScene {
         }
         const cell = (imperial ? UNITS.ft.mmPer : 100) / MM_PER_SCENE_UNIT;
         const cells = imperial ? 16 : 50;
-        this.grid = new THREE.GridHelper(cell * cells, cells, 0xb5ada0, 0xd6d0c4);
-        this.grid.userData.imperial = imperial;
+        this.grid = new THREE.GridHelper(cell * cells, cells, ...LOOKS[this.theme].grid);
+        this.grid.userData.key = key;
         this.grid.position.y = -0.0005; // just under pieces resting on the floor
         this.scene.add(this.grid);
     }
@@ -390,4 +471,20 @@ export class DesignScene {
         this.renderer.setSize(width, height);
         this.labelRenderer.setSize(width, height);
     }
+}
+
+// A vertical gradient for the scene background, from `top` to `bottom`.
+function gradientTexture(top, bottom) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 2;
+    canvas.height = 256;
+    const context = canvas.getContext('2d');
+    const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, `#${top.toString(16).padStart(6, '0')}`);
+    gradient.addColorStop(1, `#${bottom.toString(16).padStart(6, '0')}`);
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
 }

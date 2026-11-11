@@ -50,7 +50,7 @@ const SECTIONS = [
             'Type lengths in any unit: 30, 1 1/2, 3/4, 1\' 6", 45 cm or 450 mm all work.',
             'Drag a field up or down to change it; hold Shift for big steps or Alt for fine ones. On a phone, '
                 + 'drag the small label above the field instead.',
-            'Position is the corner nearest the origin before rotation. Rotation is in degrees, about the '
+            'Position is the corner of the piece nearest the origin, as it sits in the view. Rotation is in degrees, about the '
                 + 'centre of the piece.',
             'With a group or several items selected, the X / Y / Z fields move everything together and '
                 + 'Rotate X / Y / Z turns a group about its centre.',

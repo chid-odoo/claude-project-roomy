@@ -27,7 +27,7 @@ export const DEFAULT_SHEET = Object.freeze({
 });
 
 const EPS = 1e-6;
-const THICKNESS_TOLERANCE = 0.01; // mm, as in the cut list
+export const THICKNESS_TOLERANCE = 0.01; // mm, as in the cut list
 
 export function validateSheet(sheet) {
     for (const key of ['length', 'width']) {

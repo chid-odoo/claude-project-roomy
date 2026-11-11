@@ -3,7 +3,7 @@
 // stands in for it.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Project } from '../src/model/project.js';
-import { toMm } from '../src/model/units.js';
+import { parseLength, toMm } from '../src/model/units.js';
 import { Panel } from '../src/ui/panel.js';
 
 // jsdom has no PointerEvent or pointer capture.
@@ -156,6 +156,15 @@ describe('piece editor', () => {
         expect(piece.position.x).toBeCloseTo(toMm(24, 'in'));
         expect(piece.rotation.y).toBe(90);
         expect(input('Rotate Y').value).toBe('90');
+    });
+
+    it('shows and sets the position of the rotated piece', () => {
+        // A 24 x 24 x 3/4" panel laid flat: its 3/4" sits around the centre, 12" up.
+        type(input('Rotate X'), '90');
+        expect(parseLength(input('Y').value, 'in')).toBeCloseTo(toMm(11.625, 'in'));
+        type(input('Y'), '34');
+        expect(parseLength(input('Y').value, 'in')).toBeCloseTo(toMm(34, 'in'));
+        expect(project.pieces[0].position.y).toBeCloseTo(toMm(34 - 12 + 0.375, 'in'));
     });
 
     it('changes a size by dragging the field up', () => {
@@ -440,6 +449,48 @@ describe('sheets to buy', () => {
         button('Add panel').click();
         type(input('Depth', 1), '1/4');
         expect(estimate().map((line) => line.split(':')[0])).toEqual(['1/4" plywood', '3/4" plywood']);
+    });
+});
+
+describe('thickness', () => {
+    const thicknesses = () => project.pieces.map((p) => Math.min(p.width, p.height, p.depth));
+
+    it('changes the thickness of the selected piece', () => {
+        button('Add panel').click();
+        expect(parseLength(input('Thickness').value, 'in')).toBeCloseTo(toMm(0.75, 'in'));
+        type(input('Thickness'), '1/2');
+        expect(project.pieces[0].depth).toBeCloseTo(toMm(0.5, 'in'));
+    });
+
+    it('changes every board of a box and keeps its outside size', () => {
+        button('Add box').click();
+        type(input('Thickness'), '1/2');
+        thicknesses().forEach((t) => expect(t).toBeCloseTo(toMm(0.5, 'in')));
+        expect(shown('.overall')[0].textContent).toBe('5 pieces, overall 24" x 12" x 16"');
+        expect(input('Thickness').value).toBe('1/2"');
+    });
+
+    it('leaves the field empty when the selection has several thicknesses', () => {
+        button('Add panel').click();
+        type(input('Depth', 1), '1/4');
+        button('Add panel').click();
+        project.select(project.pieces.map((p) => `piece:${p.id}`));
+        expect(input('Thickness').value).toBe('');
+        expect(input('Thickness').placeholder).toBe('mixed');
+    });
+
+    it('selects all boards of one thickness from the sheet estimate, ready to change', () => {
+        button('Add box').click();
+        button('Add panel').click();
+        type(input('Depth', 1), '1/4');
+        const group = shown('.estimate-group').find((g) => g.textContent.startsWith('3/4"'));
+        group.querySelector('button').click();
+        expect(project.selectedPieces).toHaveLength(5);
+        expect(document.activeElement).toBe(input('Thickness'));
+        type(input('Thickness'), '18 mm');
+        expect(thicknesses().sort((a, b) => a - b)).toEqual([
+            toMm(0.25, 'in'), 18, 18, 18, 18, 18,
+        ].map((t) => expect.closeTo(t, 6)));
     });
 });
 

@@ -2,7 +2,8 @@ import { createBox } from '../model/box.js';
 import { buildCutList } from '../model/cutlist.js';
 import { AXES, DIMENSION_OF_AXIS, DIMENSIONS, parseKey, pieceKey } from '../model/project.js';
 import { formatLength, MOVE_STEPS, moveSteps, THICKNESS_PRESETS, toMm, UNITS } from '../model/units.js';
-import { estimateSheets, SHEET_PRESETS } from '../model/sheets.js';
+import { estimateSheets, SHEET_PRESETS, THICKNESS_TOLERANCE } from '../model/sheets.js';
+import { thicknessOf } from '../model/thickness.js';
 import { fileName, loadText, toJSONText } from '../model/storage.js';
 import { bounds } from '../view/transform.js';
 import { buildHelp } from './help.js';
@@ -426,15 +427,18 @@ export class Panel {
     }
 
     _buildEditor() {
-        const update = (changes) => {
+        // Run a change, showing what went wrong if the project refuses it.
+        const attempt = (change) => {
             try {
-                this.project.updatePiece(this.project.selectedPiece.id, changes);
+                change();
             } catch (err) {
                 this.render();
                 this.editorError.textContent = err.message;
                 this.editorError.hidden = false;
             }
         };
+        const update = (changes) => attempt(() => this.project.updatePiece(this.project.selectedPiece.id, changes));
+        const setThickness = (pieces, mm) => attempt(() => this.project.setThickness(pieces.map((p) => p.id), mm));
         this.editorTitle = el('h2');
         this.editorError = el('p', { className: 'error', hidden: true });
 
@@ -466,14 +470,16 @@ export class Panel {
         ]));
         this.posFields = Object.fromEntries(AXES.map((axis) => [
             axis,
-            this._field(axis.toUpperCase(), (mm) => update({ position: { [axis]: mm } })),
+            this._field(axis.toUpperCase(), (mm) => attempt(() => this.project.movePieceTo(this.project.selectedPiece.id, axis, mm))),
         ]));
         this.rotFields = Object.fromEntries(AXES.map((axis) => [
             axis,
             this._field(`Rotate ${axis.toUpperCase()}`, (deg) => update({ rotation: { [axis]: deg } }), { kind: 'angle' }),
         ]));
-        this.sizeBlock = this._block('Size', '', DIMENSIONS.map((dim) => this.dimFields[dim].root));
-        this.posBlock = this._block('Position', 'Position of the corner nearest the origin, before rotation',
+        // Thickness is the smallest of the three; changing it keeps joints closed.
+        this.thickField = this._field('Thickness', (mm) => setThickness([this.project.selectedPiece], mm), { min: MIN_SIZE });
+        this.sizeBlock = this._block('Size', '', [...DIMENSIONS.map((dim) => this.dimFields[dim].root), this.thickField.root]);
+        this.posBlock = this._block('Position', 'Position of the piece\'s corner nearest the origin',
             AXES.map((axis) => this.posFields[axis].root));
         this.rotBlock = this._block('Rotate', 'Rotation in degrees, about the centre of the piece',
             AXES.map((axis) => this.rotFields[axis].root));
@@ -486,9 +492,11 @@ export class Panel {
             this._buildSplit(),
         ]);
 
-        // Group or several items: overall size and position. Changing a
-        // position moves everything selected together.
+        // Group or several items: overall size, thickness and position.
+        // Changing a position moves everything selected together; changing
+        // the thickness changes every selected board.
         this.overall = el('p', { className: 'overall' });
+        this.selThickField = this._field('Thickness', (mm) => setThickness(this.project.selectedPieces, mm), { min: MIN_SIZE });
         this.selPosFields = Object.fromEntries(AXES.map((axis) => [
             axis,
             this._field(axis.toUpperCase(), (mm) => this.project.moveSelectionTo(axis, mm)),
@@ -496,6 +504,7 @@ export class Panel {
         this.selSizeBlock = el('div', { className: 'transform-block' }, [
             el('span', { className: 'block-title', textContent: 'Size' }),
             this.overall,
+            el('div', { className: 'row' }, [this.selThickField.root]),
         ]);
         this.selPosBlock = this._block('Position', 'Position of the selection\'s corner nearest the origin',
             AXES.map((axis) => this.selPosFields[axis].root));
@@ -706,7 +715,9 @@ export class Panel {
             const count = group.sheets.length;
             const summary = `${formatLength(group.thickness, unit)} plywood: ${count} sheet${count === 1 ? '' : 's'} of ${name}`
                 + (count ? `, ${Math.round(group.used * 100)}% used` : '');
-            const parts = [el('p', { className: 'estimate-line', textContent: summary })];
+            const change = el('button', { type: 'button', className: 'secondary', textContent: 'Change thickness' });
+            change.addEventListener('click', () => this._selectThickness(group.thickness));
+            const parts = [el('p', { className: 'estimate-line', textContent: summary }), change];
             if (group.oversized.length) {
                 const list = group.oversized.map((p) => `${p.name} (${sizeText(p.length, p.width, unit)})`).join(', ');
                 parts.push(el('p', { className: 'error', textContent: `Too big for a ${name} sheet: ${list}` }));
@@ -729,6 +740,16 @@ export class Panel {
                 + 'The grain runs left to right on the diagrams. Change the sheet size and saw in Settings.',
         }));
         this.estimateBody.replaceChildren(...blocks);
+    }
+
+    // Select every board of this thickness and put the cursor in the
+    // Thickness field, ready to type the new one.
+    _selectThickness(thickness) {
+        const pieces = this.project.pieces.filter((p) => Math.abs(thicknessOf(p) - thickness) < THICKNESS_TOLERANCE);
+        this.project.select(pieces.map((p) => pieceKey(p.id)));
+        const field = pieces.length === 1 ? this.thickField : this.selThickField;
+        field.input.focus();
+        field.input.select();
     }
 
     _buildCutList() {
@@ -817,14 +838,23 @@ export class Panel {
             for (const dim of DIMENSIONS) {
                 this.dimFields[dim].set(piece[dim]);
             }
+            this.thickField.set(thicknessOf(piece));
+            const box = bounds([piece]);
             for (const axis of AXES) {
-                this.posFields[axis].set(piece.position[axis]);
+                this.posFields[axis].set(box.min[axis]);
                 this.rotFields[axis].set(piece.rotation[axis]);
             }
         } else if (selection.length) {
             const selected = this.project.selectedPieces;
             this.editorTitle.textContent = group ? 'Selected group' : `${selection.length} items selected`;
             this.overall.textContent = `${selected.length} pieces, overall ${this._size(selected)}`;
+            // Several thicknesses: an empty field, but dragging starts from the first.
+            const thicknesses = selected.map(thicknessOf);
+            this.selThickField.set(thicknesses[0]);
+            if (thicknesses.some((t) => Math.abs(t - thicknesses[0]) >= THICKNESS_TOLERANCE)) {
+                this.selThickField.input.value = '';
+            }
+            this.selThickField.input.placeholder = 'mixed';
             const box = bounds(selected);
             for (const axis of AXES) {
                 this.selPosFields[axis].set(box.min[axis]);

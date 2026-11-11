@@ -339,6 +339,41 @@ describe('moveSelectionTo', () => {
     });
 });
 
+describe('movePieceTo', () => {
+    it('puts the rotated corner at the value and leaves the other axes', () => {
+        // 600 x 400 x 18 board laid flat (X 90): only 18 thick along Y, centred at y = 200.
+        const project = new Project();
+        project.addPiece({ ...panel, position: { x: 10, y: 0, z: 30 }, rotation: { x: 90 } });
+        project.movePieceTo(1, 'y', 1000);
+        const box = bounds([project.getPiece(1)]);
+        expect(box.min.y).toBeCloseTo(1000);
+        expect(box.max.y).toBeCloseTo(1018);
+        expect(project.getPiece(1).position).toMatchObject({ x: 10, z: 30 });
+        expect(project.getPiece(1).position.y).toBeCloseTo(1000 - 200 + 9);
+    });
+
+    it('is the stored position for an unrotated piece', () => {
+        const project = projectWith(1);
+        project.movePieceTo(1, 'x', 250);
+        expect(project.getPiece(1).position).toEqual({ x: 250, y: 0, z: 0 });
+    });
+
+    it('records one undo step, and none when nothing moves', () => {
+        const project = projectWith(1);
+        project.movePieceTo(1, 'x', 0);
+        expect(project.canUndo).toBe(false);
+        project.movePieceTo(1, 'x', 250);
+        project.undo();
+        expect(project.getPiece(1).position.x).toBe(0);
+    });
+
+    it('rejects non-numbers and unknown pieces', () => {
+        const project = projectWith(1);
+        expect(() => project.movePieceTo(1, 'x', NaN)).toThrow('position x');
+        expect(() => project.movePieceTo(9, 'x', 0)).toThrow('No piece with id 9');
+    });
+});
+
 describe('addBox', () => {
     const box = [panel, panel, panel];
 

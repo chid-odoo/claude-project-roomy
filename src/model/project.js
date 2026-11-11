@@ -15,6 +15,7 @@ import {
     alongPiece, bounds, centroid, normalizeAngle, pieceCenter, quaternionOf, rotatePiecesAbout, ZERO_ROTATION,
 } from './geometry.js';
 import { DEFAULT_SHEET, validateSheet } from './sheets.js';
+import { thicknessChanges } from './thickness.js';
 
 export const DIMENSIONS = ['width', 'height', 'depth'];
 export const AXES = ['x', 'y', 'z'];
@@ -373,6 +374,51 @@ export class Project {
         if (box) {
             this.moveSelection({ [axis]: value - box.min[axis] });
         }
+    }
+
+    // Move one piece so the corner of its rotated bounding box nearest the
+    // origin sits at `value` on `axis`: the position the user sees, not the
+    // stored corner from before rotation.
+    movePieceTo(id, axis, value) {
+        const piece = this.getPiece(id);
+        if (!piece) {
+            throw new Error(`No piece with id ${id}`);
+        }
+        if (!Number.isFinite(value)) {
+            throw new Error(`position ${axis} must be a number`);
+        }
+        const offset = value - bounds([piece]).min[axis];
+        if (!offset) {
+            return;
+        }
+        this._record();
+        piece.position[axis] += offset;
+        this._emit();
+    }
+
+    // Make the given pieces `thickness` thick, keeping butt joints closed
+    // (see thickness.js). One undo step.
+    setThickness(ids, thickness) {
+        if (!(Number.isFinite(thickness) && thickness > 0)) {
+            throw new Error('Thickness must be a positive number');
+        }
+        const targets = ids.map((id) => this.getPiece(id)).filter(Boolean);
+        const centres = new Map();
+        for (const piece of targets) {
+            if (piece.groupId !== null && piece.groupId !== undefined) {
+                const box = bounds(this.piecesIn(groupKey(piece.groupId)));
+                centres.set(piece.id, Object.fromEntries(AXES.map((axis) => [axis, (box.min[axis] + box.max[axis]) / 2])));
+            }
+        }
+        const changes = thicknessChanges(this.pieces, targets, thickness, centres);
+        if (!changes.size) {
+            return;
+        }
+        this._record();
+        for (const [id, change] of changes) {
+            Object.assign(this.getPiece(id), change);
+        }
+        this._emit();
     }
 
     // Delete the given nodes and everything inside them.
